@@ -21,6 +21,7 @@ data class MessageConfig(
         private val help: String = """
             {#a0a>}&lXALIC{#fff<}&f&lHAT &7> &dHELP
             &d/{0} &rreload
+            &d/{0} &r<command> &7- every x-command runs here without the x, e.g. &f/{0} broadcast
         """.trimIndent(),
         val message: Message = Message(),
         val reload: Reload = Reload(),
@@ -36,6 +37,8 @@ data class MessageConfig(
         val nickname: Nickname = Nickname(),
         val interactive: Interactive = Interactive(),
         val broadcast: Broadcast = Broadcast(),
+        val announce: Announce = Announce(),
+        val filter: Filter = Filter(),
     ) {
         fun help(label: String): String = help.formatArgs(label)
         @Serializable
@@ -169,11 +172,35 @@ data class MessageConfig(
         data class Broadcast(
             private val usage: String = "Usage: &d/{0} &r<message>",
             @YamlComment("{0} is the message.")
-            private val format: String = "&8[&6Broadcast&8] &f{0}",
+            val format: String = "&8[&6Broadcast&8] &f{0}",
+            @SerialName("local-only")
+            val localOnly: String = "Global messages need Velocity forwarding enabled and a player online to carry them; only this server saw it.",
         ) {
             fun usage(label: String): String = usage.formatArgs(label)
-            fun format(message: String): String = format.formatArgs(message)
         }
+
+        @Serializable
+        data class Announce(
+            private val usage: String = "Usage: &d/{0} &r<player> <announcement>",
+            private val unknown: String = "No announcement named '{0}'.",
+            private val disabled: String = "Announcement '{0}' is disabled.",
+            private val played: String = "Played '{0}' for {1}.",
+            @SerialName("target-invalid")
+            private val targetInvalid: String = "Player '{0}' not found!",
+            @SerialName("local-only")
+            val localOnly: String = "Global messages need Velocity forwarding enabled and a player online to carry them; only this server ran it.",
+        ) {
+            fun usage(label: String): String = usage.formatArgs(label)
+            fun unknown(key: String): String = unknown.formatArgs(key)
+            fun disabled(key: String): String = disabled.formatArgs(key)
+            fun played(key: String, playerName: String): String = played.formatArgs(key, playerName)
+            fun targetInvalid(playerName: String): String = targetInvalid.formatArgs(playerName)
+        }
+
+        @Serializable
+        data class Filter(
+            val blocked: String = "Your message was blocked for containing a filtered word.",
+        )
 
         @Serializable
         data class Interactive(

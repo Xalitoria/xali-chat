@@ -21,6 +21,7 @@ import org.bukkit.entity.Player
 object MuteCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Chat and broadcast mute settings"
     override val mainCommand = "xmute"
+    override val aliases: List<String> = ["mute"]
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
         .then(toggle("players", Setting.MUTE_PLAYERS, Permissions.SET_MUTE_PLAYERS, plugin))

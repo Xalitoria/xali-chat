@@ -9,49 +9,48 @@ import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.constants.Permissions
-import mc.xalitoria.chat.paper.data.constants.Permissions.stripColors
-import mc.xalitoria.chat.paper.data.db.SettingCache
-import mc.xalitoria.chat.paper.data.db.tables.Setting
-import mc.xalitoria.chat.paper.util.toComponent
+import mc.xalitoria.chat.paper.util.Colorizer
 import mc.xalitoria.util.message.*
 
 /**
- * `/broadcast <message>` sends a server-wide announcement to everyone online and the console. Players who muted
+ * `/xbroadcast <message>` sends a server-wide announcement to everyone online and the console. Players who muted
  * broadcasts skip it unless the sender has [Permissions.BYP_MUTE_BROADCASTS]. Formatting is limited by the
- * sender's `xalichat.format.broadcast.*` permissions.
+ * sender's `xalichat.format.broadcast.*` permissions. [GlobalBroadcastCommand] sends it to every server instead.
  */
 object BroadcastCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Server-wide announcement command"
-    override val mainCommand = "broadcast"
-    override val aliases: List<String> = ["bc"]
-    private const val PERMISSION = "xalichat.admin.broadcast"
-    private const val FORMAT_PERMISSION = "xalichat.format.broadcast"
+    override val mainCommand = "xbroadcast"
+    override val aliases: List<String> = ["broadcast", "bcast", "bc"]
+    override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = node(mainCommand, global = false)
 
-    override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
-        .literal(mainCommand)
-        .executes { ctx -> ctx.source.sender fail msg.usage("broadcast"); Command.SINGLE_SUCCESS }
+    /** The command tree under [label]; [global] relays it through the proxy to every server, this one included. */
+    fun node(label: String, global: Boolean): LiteralArgumentBuilder<CommandSourceStack> = Commands
+        .literal(label)
+        .executes { ctx -> ctx.source.sender fail msg.usage(label); Command.SINGLE_SUCCESS }
         .then(Commands
             .argument("message", StringArgumentType.greedyString())
             .executes { ctx ->
                 val sender = ctx.source.sender
-                if (!sender.hasPermission(PERMISSION)) {
-                    debug("/broadcast denied for {0}: missing {1}", sender.name, PERMISSION)
+                val permission = if (global) Permissions.CMD_ADMIN_BROADCAST_GLOBAL else Permissions.CMD_ADMIN_BROADCAST
+                if (!sender.hasPermission(permission)) {
+                    debug("/{0} denied for {1}: missing {2}", label, sender.name, permission)
                     sender fail noPermission
                     return@executes Command.SINGLE_SUCCESS
                 }
 
-                val text = StringArgumentType.getString(ctx, "message").stripColors(sender, FORMAT_PERMISSION)
-                val announcement = msg.format(text).toComponent()
+                val text = StringArgumentType.getString(ctx, "message")
+                val announcement = Colorizer.parse(msg.format, text, sender, Permissions.FORMAT_BROADCAST)
                 val bypassesMute = sender.hasPermission(Permissions.BYP_MUTE_BROADCASTS)
+                debug("/{0} by {1}: bypassesMute={2}, message={3}", label, sender.name, bypassesMute, text)
 
-                val recipients = plugin.server.onlinePlayers
-                    .filter { bypassesMute || !SettingCache.isEnabled(it.uniqueId, Setting.MUTE_BROADCASTS) }
-                recipients.forEach { it.sendMessage(announcement) }
-                debug(
-                    "/broadcast by {0}: {1}/{2} players received it (bypassesMute={3}, formatted={4})",
-                    sender.name, recipients.size, plugin.server.onlinePlayers.size, bypassesMute, text,
-                )
-                plugin.server.consoleSender.sendMessage(announcement)
+                val relayed = global && plugin.messenger.sendSigned("BROADCAST") {
+                    writeBoolean(bypassesMute)
+                    write(GCOMP.serialize(announcement).toByteArray())
+                }
+                if (!relayed) {
+                    if (global) sender warn msg.localOnly
+                    plugin.announcements.send(bypassesMute) { listOf(announcement) }
+                }
                 Command.SINGLE_SUCCESS
             }
         )

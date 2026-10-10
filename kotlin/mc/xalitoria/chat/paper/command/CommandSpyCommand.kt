@@ -14,14 +14,14 @@ import org.bukkit.entity.Player
 
 object CommandSpyCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Command spy toggle"
-    override val mainCommand = "commandspy"
-    override val aliases: List<String> = []
+    override val mainCommand = "xcommandspy"
+    override val aliases: List<String> = ["commandspy"]
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
             .executes { ctx ->
                 val sender = ctx.source.sender
-                if (!sender.hasPermission(Permissions.SPY_COMMAND)) {
-                    debug("/commandspy denied for {0}: missing {1}", sender.name, Permissions.SPY_COMMAND)
+                if (!sender.hasPermission(Permissions.CMD_ADMIN_SPY_COMMAND)) {
+                    debug("/xcommandspy denied for {0}: missing {1}", sender.name, Permissions.CMD_ADMIN_SPY_COMMAND)
                     sender fail noPermission
                     return@executes Command.SINGLE_SUCCESS
                 }

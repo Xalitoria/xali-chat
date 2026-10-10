@@ -14,14 +14,14 @@ import org.bukkit.entity.Player
 
 object SocialSpyCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Social spy toggle"
-    override val mainCommand = "socialspy"
-    override val aliases: List<String> = []
+    override val mainCommand = "xsocialspy"
+    override val aliases: List<String> = ["socialspy"]
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
         .executes { ctx ->
             val sender = ctx.source.sender
-            if (!sender.hasPermission(Permissions.SPY_SOCIAL)) {
-                debug("/socialspy denied for {0}: missing {1}", sender.name, Permissions.SPY_SOCIAL)
+            if (!sender.hasPermission(Permissions.CMD_ADMIN_SPY_SOCIAL)) {
+                debug("/xsocialspy denied for {0}: missing {1}", sender.name, Permissions.CMD_ADMIN_SPY_SOCIAL)
                 sender fail noPermission
                 return@executes Command.SINGLE_SUCCESS
             }

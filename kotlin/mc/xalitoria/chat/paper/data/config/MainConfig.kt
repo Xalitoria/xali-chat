@@ -10,14 +10,19 @@ data class MainConfig(
     val debug: Boolean = false,
     val language: String = "en-us",
     @YamlComment(
-        "{0} is the name, {1} the message. {vault_prefix}, {vault_suffix}, {vault_group} and",
-        "PlaceholderAPI placeholders also expand.",
+        "{0} is the name, {1} the message.",
+        "{vault_prefix}, {vault_suffix}, {vault_group} and PlaceholderAPI placeholders are supported.",
     )
     @SerialName("chat-format")
     val chatFormat: String = "<{0}> {1}",
     @YamlComment("Expands [item], [inv], [ender] and [ping] in chat into hoverable or clickable components. Applies on reload.")
     @SerialName("interactive-chat")
     val interactiveChat: Boolean = true,
+    @YamlComment(
+        "ProtocolLib packet listeners: chat signing, colored tab list/scoreboard/signs/etc. Applies on reload.",
+        "Disable if a ProtocolLib conflict or bug needs ruling out without removing the plugin.",
+    )
+    val protocolor: Boolean = true,
     val database: Database = Database(),
     val nickname: Nickname = Nickname(),
     @YamlComment(

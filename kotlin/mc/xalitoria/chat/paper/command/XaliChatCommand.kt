@@ -8,11 +8,30 @@ import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.util.message.*
+import mc.xalitoria.chat.paper.data.constants.Permissions
 
+/** The root command. Every other command is registered on its own and also runs here under its names without the `x`. */
 object XaliChatCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Main command for XaliChat"
     override val mainCommand = "xalichat"
-    override val aliases = ["xchat", "chat"]
+    override val aliases = ["chat"]
+
+    val commands: List<XCommand> = [
+        MessageCommand,
+        SpamCommand,
+        IgnoreCommand,
+        MuteCommand,
+        CommandSpyCommand,
+        SocialSpyCommand,
+        ChatLogCommand,
+        BroadcastCommand,
+        GlobalBroadcastCommand,
+        AnnounceCommand,
+        GlobalAnnounceCommand,
+        ViewCommand,
+        NicknameCommand,
+    ]
+
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
         .executes { ctx ->
@@ -23,7 +42,7 @@ object XaliChatCommand: XCommand(XaliChat.INSTANCE) {
             .literal("reload")
             .executes { ctx ->
                 val sender = ctx.source.sender
-                if (!sender.hasPermission("xalichat.reload")) {
+                if (!sender.hasPermission(Permissions.RELOAD)) {
                     debug("/xalichat reload denied for {0}: missing xalichat.reload", sender.name)
                     sender fail cmdMsg.noPermission
                 } else {
@@ -34,6 +53,7 @@ object XaliChatCommand: XCommand(XaliChat.INSTANCE) {
                 Command.SINGLE_SUCCESS
             }
         )
+        .also { root -> commands.forEach { command -> command.subcommands.forEach { root.then(command.subcommand(it)) } } }
 
     private val cmdMsg get() = XaliChat.INSTANCE.messageConfig.data.commands
 }

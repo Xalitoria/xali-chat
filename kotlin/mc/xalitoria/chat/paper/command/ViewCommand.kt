@@ -15,7 +15,7 @@ import org.bukkit.entity.Player
 object ViewCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Interactive chat snapshot viewer"
     override val mainCommand = "xview"
-    override val aliases: List<String> = []
+    override val aliases: List<String> = ["view"]
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
         .then(Commands

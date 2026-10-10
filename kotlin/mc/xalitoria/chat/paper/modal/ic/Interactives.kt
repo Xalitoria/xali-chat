@@ -2,6 +2,7 @@ package mc.xalitoria.chat.paper.modal.ic
 
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.util.message.PLAIN
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
@@ -26,12 +27,12 @@ import kotlin.uuid.Uuid
  * Chat tokens (`[item]`, `[inv]`, `[ender]`, `[ping]`) that expand into hoverable or clickable components.
  * Inventory tokens store a snapshot that `/xview <id>` opens read-only; the newest [MAX_SNAPSHOTS] are kept.
  */
-class InteractiveChat(private val plugin: XaliChat) : Listener {
+class Interactives(private val plugin: XaliChat) : Listener {
     enum class Token(val text: String, val permission: String) {
-        ITEM("[item]", "xalichat.interactive.item"),
-        INVENTORY("[inv]", "xalichat.interactive.inventory"),
-        ENDER("[ender]", "xalichat.interactive.ender"),
-        PING("[ping]", "xalichat.interactive.ping"),
+        ITEM("[item]", Permissions.INTERACTIVE_ITEM),
+        INVENTORY("[inv]", Permissions.INTERACTIVE_INVENTORY),
+        ENDER("[ender]", Permissions.INTERACTIVE_ENDER),
+        PING("[ping]", Permissions.INTERACTIVE_PING),
     }
 
     private class Snapshot(val title: Component, val size: Int, val slots: Map<Int, ItemStack>)

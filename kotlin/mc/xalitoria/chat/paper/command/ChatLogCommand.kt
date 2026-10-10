@@ -5,31 +5,28 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
-import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.modal.command.XCommand
-import mc.xalitoria.chat.paper.data.log.ChatLogFiles
-import mc.xalitoria.chat.paper.data.log.ChatLogReader
-import mc.xalitoria.chat.paper.data.log.ChatLogSearch
-import mc.xalitoria.chat.paper.data.log.ChatLogSessions
-import mc.xalitoria.chat.paper.data.constants.Permissions
-import mc.xalitoria.chat.paper.data.db.repository.ChatLogRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.chat.paper.data.db.repository.ChatLogRepository
+import mc.xalitoria.chat.paper.data.log.*
+import mc.xalitoria.chat.paper.external.protocol.protocolor
+import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.*
 import mc.xalitoria.chat.paper.util.DurationParseResult.Invalid
 import mc.xalitoria.chat.paper.util.DurationParseResult.Ok
+import mc.xalitoria.color.applyColors
+import mc.xalitoria.color.componentColors
 import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.util.message.*
 import mc.xalitoria.util.serial.toUuidOrNull
-import mc.xalitoria.chat.paper.external.protocol.protocolor
-import mc.xalitoria.color.applyCmiGradients
-import mc.xalitoria.color.componentColors
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.command.CommandSender
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
 
 /**
  * `/chatlog player:<name|uuid> since:<duration> text:<word> server:<name|*> page:<n>`, all optional.
@@ -43,8 +40,6 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
     override val aliases: List<String> = ["chatlog"]
     private const val PAGE_SIZE = 9
     private const val EXPORT_FOLDER = "exports"
-    private const val EXPORT_PERMISSION = "xalichat.admin.chatlog.export"
-    private const val IMPORT_PERMISSION = "xalichat.admin.chatlog.import"
 
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
@@ -53,7 +48,7 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
             .literal("help")
             .executes { ctx ->
                 val sender = ctx.source.sender
-                if (sender.hasPermission(Permissions.CHATLOG)) sender send msg.help("chatlog") else sender fail noPermission
+                if (sender.hasPermission(Permissions.CMD_ADMIN_CHATLOG)) sender send msg.help("chatlog") else sender fail noPermission
                 Command.SINGLE_SUCCESS
             }
         )
@@ -86,8 +81,8 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
         )
 
     private fun execute(plugin: XaliChat, sender: CommandSender, flagString: String) {
-        if (!sender.hasPermission(Permissions.CHATLOG)) {
-            debug("/chatlog denied for {0}: missing {1}", sender.name, Permissions.CHATLOG)
+        if (!sender.hasPermission(Permissions.CMD_ADMIN_CHATLOG)) {
+            debug("/chatlog denied for {0}: missing {1}", sender.name, Permissions.CMD_ADMIN_CHATLOG)
             return sender fail noPermission
         }
 
@@ -107,8 +102,8 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
     }
 
     private fun export(plugin: XaliChat, sender: CommandSender, filename: String, flagString: String) {
-        if (!sender.hasPermission(EXPORT_PERMISSION)) {
-            debug("/chatlog export denied for {0}: missing {1}", sender.name, EXPORT_PERMISSION)
+        if (!sender.hasPermission(Permissions.CMD_ADMIN_CHATLOG_EXPORT)) {
+            debug("/chatlog export denied for {0}: missing {1}", sender.name, Permissions.CMD_ADMIN_CHATLOG_EXPORT)
             return sender fail noPermission
         }
         val file = ChatLogFiles.resolve(plugin.dataFolder.toPath().resolve(EXPORT_FOLDER), filename)
@@ -131,8 +126,8 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
 
     /** Shows an exported file in the chat menu; it is read-only and never touches the stored logs. */
     private fun import(plugin: XaliChat, sender: CommandSender, filename: String) {
-        if (!sender.hasPermission(IMPORT_PERMISSION)) {
-            debug("/chatlog import denied for {0}: missing {1}", sender.name, IMPORT_PERMISSION)
+        if (!sender.hasPermission(Permissions.CMD_ADMIN_CHATLOG_IMPORT)) {
+            debug("/chatlog import denied for {0}: missing {1}", sender.name, Permissions.CMD_ADMIN_CHATLOG_IMPORT)
             return sender fail noPermission
         }
         val file = ChatLogFiles.resolve(plugin.dataFolder.toPath().resolve(EXPORT_FOLDER), filename)
@@ -217,7 +212,7 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
         // Date and time, then the sender and message below it; hovering the message shows its tagged source.
         val entries = paged.items.map { entry ->
             val message = entry.message.toSafeComponent().hoverEvent(
-                HoverEvent.showText(Component.text(entry.message.applyCmiGradients().componentColors()))
+                HoverEvent.showText(Component.text(entry.message.applyColors().componentColors()))
             )
             Component.text()
                 .append(msg.time(dateFormat.format(Date(entry.timestampMillis))).toComponent())
@@ -239,15 +234,14 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
             }
         }
 
-        val menu = ChatMenu.render(
+        ChatMenu.render(
             entries,
             paged.page,
             paged.totalPages,
             commandForPage,
             msg.pagePrev.toComponent(),
             msg.pageNext.toComponent(),
-        )
-        sender.sendMessage(menu)
+        ).let(sender::sendMessage)
     }
 
     private val cmdMsg get() = XaliChat.INSTANCE.messageConfig.data.commands

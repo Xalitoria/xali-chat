@@ -19,7 +19,7 @@ object SpyNotifier {
         val msg = plugin.messageConfig.data.commands.socialSpy
         SpyState.socialSpies.forEach { id ->
             val viewer = plugin.server.getPlayer(id) ?: return@forEach
-            if (!viewer.hasPermission(Permissions.SPY_SOCIAL) || exclude(viewer)) return@forEach
+            if (!viewer.hasPermission(Permissions.CMD_ADMIN_SPY_SOCIAL) || exclude(viewer)) return@forEach
             viewer info msg.format(senderName, targetName, message) { it.resolvePlaceholders(subject, viewer) }
         }
     }

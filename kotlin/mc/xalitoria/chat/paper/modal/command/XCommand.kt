@@ -5,12 +5,28 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
 
+/**
+ * A command whose [mainCommand] starts with `x`. Every alias is registered with and without the `x`, and the command
+ * is also a subcommand of `/xalichat` under each of those names without it (`/xalichat bc` for `/xbroadcast`).
+ */
 abstract class XCommand(val plugin: XaliChat) {
     abstract val description: String
     abstract val mainCommand: String
     open val aliases: List<String> = []
     abstract fun builder(): LiteralArgumentBuilder<CommandSourceStack>
+
+    /** The names this runs under inside `/xalichat`: the main command and the aliases, all without the `x`. */
+    val subcommands: List<String> get() = (aliases + mainCommand).map { it.removePrefix("x") }.distinct()
+
     fun register(registrar: Commands) {
-        registrar.register(builder().build(), description, aliases)
+        val labels = aliases.flatMap { [it.removePrefix("x"), "x" + it.removePrefix("x")] }
+        registrar.register(builder().build(), description, (labels - mainCommand).distinct())
+    }
+
+    /** This command's tree under another literal; the subtree is shared, so it behaves exactly like the original. */
+    fun subcommand(name: String): LiteralArgumentBuilder<CommandSourceStack> {
+        val node = builder().build()
+        return Commands.literal(name).requires(node.requirement).executes(node.command)
+            .also { sub -> node.children.forEach { sub.then(it) } }
     }
 }

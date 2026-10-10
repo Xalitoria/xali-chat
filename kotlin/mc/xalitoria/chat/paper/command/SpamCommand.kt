@@ -18,11 +18,12 @@ import org.bukkit.scheduler.BukkitRunnable
 import org.bukkit.scheduler.BukkitTask
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import mc.xalitoria.chat.paper.data.constants.Permissions
 
 object SpamCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Repeating chat command"
-    override val mainCommand = "xalispam"
-    override val aliases: List<String> = ["xspam", "spam"]
+    override val mainCommand = "xspam"
+    override val aliases: List<String> = ["spam", "alispam"]
     private val spammer: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
     private val activeTasks = ConcurrentHashMap<UUID, BukkitTask>()
 
@@ -30,19 +31,19 @@ object SpamCommand: XCommand(XaliChat.INSTANCE) {
         .literal(mainCommand)
         .executes { ctx ->
             val sender = ctx.source.sender
-            if (!sender.hasPermission("xalichat.spam")) {
-                debug("/xalispam denied for {0}: missing xalichat.spam", sender.name)
+            if (!sender.hasPermission(Permissions.SPAM)) {
+                debug("/xspam denied for {0}: missing xalichat.spam", sender.name)
                 sender fail noPermission
                 return@executes Command.SINGLE_SUCCESS
             }
-            sender send msg.usage("xalispam")
+            sender send msg.usage("xspam")
             Command.SINGLE_SUCCESS
         }
         .then(Commands
             .literal("stop")
             .executes { ctx ->
                 val sender = ctx.source.sender
-                if (!sender.hasPermission("xalichat.spam")) {
+                if (!sender.hasPermission(Permissions.SPAM)) {
                     sender fail noPermission
                     return@executes Command.SINGLE_SUCCESS
                 }
@@ -62,7 +63,7 @@ object SpamCommand: XCommand(XaliChat.INSTANCE) {
                     .argument("message", StringArgumentType.greedyString())
                     .executes { ctx ->
                         val sender = ctx.source.sender
-                        if (!sender.hasPermission("xalichat.spam")) {
+                        if (!sender.hasPermission(Permissions.SPAM)) {
                             sender fail noPermission
                             return@executes Command.SINGLE_SUCCESS
                         }

@@ -19,11 +19,12 @@ import mc.xalitoria.util.serial.toUuidOrNull
 import org.bukkit.command.CommandSender
 import org.bukkit.command.ConsoleCommandSender
 import org.bukkit.entity.Player
+import mc.xalitoria.chat.paper.data.constants.Permissions
 
 object MessageCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Private message command"
     override val mainCommand = "xmessage"
-    override val aliases: List<String> = ["message", "xmsg", "msg"]
+    override val aliases: List<String> = ["message", "msg"]
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
         .then(Commands
@@ -34,7 +35,7 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                 .executes { ctx ->
                     val sender = ctx.source.sender
 
-                    if (!sender.hasPermission("xalichat.message")) {
+                    if (!sender.hasPermission(Permissions.MESSAGE)) {
                         debug("/xmessage denied for {0}: missing xalichat.message", sender.name)
                         sender fail noPermission
                         return@executes Command.SINGLE_SUCCESS
@@ -57,7 +58,7 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                     when (target) {
                         sender -> sender fail msg.self
                         is ConsoleCommandSender -> {
-                            if (!sender.hasAnyPermission("xalichat.message", ["console", "server"])) {
+                            if (!sender.hasAnyPermission(Permissions.MESSAGE, ["console", "server"])) {
                                 sender fail noPermission
                                 return@executes Command.SINGLE_SUCCESS
                             }

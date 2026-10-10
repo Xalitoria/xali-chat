@@ -1,5 +1,8 @@
 import net.minecrell.pluginyml.bukkit.BukkitPluginDescription
+import java.io.File
 import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 plugins {
@@ -9,7 +12,7 @@ plugins {
 }
 
 group = "mc.xalitoria"
-version = "0.3.0"
+version = "0.5.0"
 
 dependencies {
     paperLibrary(libs.xalicraft.util)
@@ -22,6 +25,8 @@ dependencies {
     compileOnly(libs.protocollib)
     compileOnly(libs.vanish.api)
     compileOnly(libs.vaultunlocked)
+    testImplementation(libs.xalicraft.util)
+    testImplementation(libs.paper.api)
 }
 
 paper {
@@ -105,10 +110,27 @@ val downloadDependencies = tasks.register("downloadDependencies") {
     }
 }
 
-// Copies the shaded plugin into run/plugins, replacing the previous build; other plugins there are left alone.
-val installPlugin = tasks.register<Copy>("installPlugin") {
-    from(tasks.shadowJar.flatMap { it.archiveFile })
-    into(runDir.dir("plugins"))
+// Installs the shaded plugin into run/plugins. A previous runServer instance may still be running (and holding
+// its jar open) when this reruns, so the file is written under a temp name and moved into place atomically:
+// an open ZipFile keeps reading the old (unlinked) inode's bytes rather than a half-old-half-new mix, avoiding
+// a NoClassDefFoundError for a class the old process hadn't lazily loaded yet (e.g. a suspend fun's continuation)
+// once it does. Jars from earlier versions are removed so Paper never sees two XaliChat plugins.
+val installPlugin = tasks.register("installPlugin") {
+    val source = tasks.shadowJar.flatMap { it.archiveFile }
+    val pluginsDir = runDir.dir("plugins")
+    val jarPrefix = "${rootProject.name}-${project.name}-"
+    inputs.file(source)
+    outputs.dir(pluginsDir)
+    doLast {
+        val sourceFile = source.get().asFile
+        val targetDir = pluginsDir.asFile.apply { mkdirs() }
+        targetDir.listFiles { f -> f.name.startsWith(jarPrefix) && f != sourceFile }
+            ?.forEach { it.delete() }
+        val target = targetDir.resolve(sourceFile.name)
+        val temp = File.createTempFile("${sourceFile.name}.", ".tmp", targetDir)
+        sourceFile.copyTo(temp, overwrite = true)
+        Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+    }
 }
 
 // Runs Paper from run/ on the JetBrains Runtime, whose DCEVM lets a rebuilt plugin be hot-swapped with far fewer limits.

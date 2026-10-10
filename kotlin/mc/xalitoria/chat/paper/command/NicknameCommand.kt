@@ -18,7 +18,6 @@ import mc.xalitoria.chat.paper.data.db.repository.NicknameRepository
 import mc.xalitoria.chat.paper.util.findKnownPlayer
 import mc.xalitoria.chat.paper.util.nameOrId
 import mc.xalitoria.chat.paper.util.suggestMatching
-import mc.xalitoria.chat.paper.util.toComponent
 import mc.xalitoria.chat.paper.util.visiblePlayerNames
 import mc.xalitoria.util.message.*
 import mc.xalitoria.util.bukkit.runTask
@@ -30,8 +29,8 @@ import org.bukkit.entity.Player
  */
 object NicknameCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Nickname command"
-    override val mainCommand = "nickname"
-    override val aliases: List<String> = ["nick"]
+    override val mainCommand = "xnickname"
+    override val aliases: List<String> = ["nickname", "nick"]
     private const val RESET = "reset"
     private const val MAX_STORED_LENGTH = 64
 
@@ -56,7 +55,7 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
 
                 val target = if (targetInput == null) {
                     if (sender !is Player) {
-                        sender fail playerCommandOnly
+                        sender fail cmdMsg.playerCommandOnly
                         return@executes Command.SINGLE_SUCCESS
                     }
                     sender
@@ -71,7 +70,7 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
                 val isSelf = sender is Player && sender.uniqueId == target.uniqueId
                 if (!sender.hasPermission(if (isSelf) Permissions.NICKNAME else Permissions.NICKNAME_OTHERS)) {
                     debug("/nickname denied for {0} (self={1})", sender.name, isSelf)
-                    sender fail noPermission
+                    sender fail cmdMsg.noPermission
                     return@executes Command.SINGLE_SUCCESS
                 }
 
@@ -86,13 +85,13 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
                             }
                         } catch (e: Exception) {
                             plugin.logger.fail("Failed to reset nickname for ${target.nameOrId}", e)
-                            plugin.runTask { sender fail unexpectedError }
+                            plugin.runTask { sender fail cmdMsg.unexpectedError }
                         }
                     }
                     return@executes Command.SINGLE_SUCCESS
                 }
 
-                val nickname = input.stripColors(sender, Permissions.NICKNAME)
+                val nickname = input.stripColors(sender, if (isSelf) Permissions.FORMAT_NICKNAME else Permissions.FORMAT_NICKNAME_OTHERS)
                 val plain = MINI.stripTags(nickname)
                 val maxLength = plugin.config.data.nickname.maxLength.coerceIn(1, MAX_STORED_LENGTH)
                 when {
@@ -133,7 +132,7 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
                         }
                     } catch (e: Exception) {
                         plugin.logger.fail("Failed to set nickname for ${target.nameOrId}", e)
-                        plugin.runTask { sender fail unexpectedError }
+                        plugin.runTask { sender fail cmdMsg.unexpectedError }
                     }
                 }
                 Command.SINGLE_SUCCESS
@@ -142,9 +141,6 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
 
     private val cmdMsg get() = XaliChat.INSTANCE.messageConfig.data.commands
     private val msg get() = cmdMsg.nickname
-    private val noPermission get() = cmdMsg.noPermission
-    private val playerCommandOnly get() = cmdMsg.playerCommandOnly
-    private val unexpectedError get() = cmdMsg.unexpectedError
 
     /** [nickname] was already stripped for whoever set it, so it is shown as stored. */
     fun Player.applyNickname(nickname: String?) = displayName(nickname?.toComponent())

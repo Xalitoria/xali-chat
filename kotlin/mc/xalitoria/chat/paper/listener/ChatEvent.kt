@@ -9,17 +9,14 @@ import mc.xalitoria.chat.paper.data.db.IgnoreCache
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.data.log.ChatLogEntry
-import mc.xalitoria.chat.paper.util.toComponent
 import mc.xalitoria.chat.paper.util.withPlaceholders
 import mc.xalitoria.chat.paper.util.withRelationalPlaceholders
-import mc.xalitoria.util.message.PLAIN
-import mc.xalitoria.util.message.formatArgs
+import mc.xalitoria.util.message.*
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
-import java.util.logging.Logger
 
 class ChatEvent(private val plugin: XaliChat) : Listener {
 
@@ -29,6 +26,15 @@ class ChatEvent(private val plugin: XaliChat) : Listener {
 
         val rawText = PLAIN.serialize(event.message()).trim()
         plugin.logs.chat(ChatLogEntry(System.currentTimeMillis(), player.uniqueId, player.name, rawText))
+
+        val filter = plugin.filterConfig.data
+        //&& filter.isBlocked(rawText)
+        if (filter.enabled && !player.hasPermission(Permissions.BYP_FILTER) ) {
+            debug("Chat from {0} blocked by filter", player.name)
+            event.isCancelled = true
+            player fail plugin.messageConfig.data.commands.filter.blocked
+            return
+        }
 
         // Placeholders expand on the template before the message goes in, so typed text is never resolved.
         val template = plugin.config.data.chatFormat.withPlaceholders(player)
@@ -58,9 +64,5 @@ class ChatEvent(private val plugin: XaliChat) : Listener {
             "Chat from {0}: {1} tokens, per-viewer render={2}, {3}/{4} viewers hidden (bypassIgnore={5}, bypassMute={6})",
             player.name, tokens.size, shared == null, before - event.viewers().size, before, bypassesIgnore, bypassesMute,
         )
-    }
-
-    private companion object {
-        //val chatLogger: Logger = Logger.getLogger("CHAT")
     }
 }

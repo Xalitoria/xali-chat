@@ -10,6 +10,7 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.util.CHAT_MINI
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.tables.Setting
+import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.constants.Permissions.stripColors as stripFormat
 import mc.xalitoria.color.stripColors
 import mc.xalitoria.util.message.*
@@ -22,7 +23,7 @@ import org.bukkit.permissions.PermissibleBase
  * (formatting tags stripped, interactive tokens described); Discord messages reach Minecraft with a safe
  * subset of MiniMessage parsed, and skip players who muted chat.
  */
-class DiscordSRVAddon(private val interactive: InteractiveChat) {
+class DiscordSRVAddon(private val interactive: Interactives) {
     fun register() {
         if (DiscordSRV.isAvailable()) DiscordSRV.get().eventBus().subscribe(this)
     }
@@ -55,7 +56,7 @@ class DiscordSRVAddon(private val interactive: InteractiveChat) {
             event.message = MinecraftComponent.fromAdventure(
                 // The "&r" makes stripColors always run; it returns early on text without codes, which would skip
                 // permission checks for typed MiniMessage tags.
-                message.mapText { CHAT_MINI.deserialize("&r$it".stripFormat(author, FORMAT_PERMISSION)) }
+                message.mapText { CHAT_MINI.deserialize("&r$it".stripFormat(author, Permissions.FORMAT_DISCORD)) }
             )
         }
         event.recipients?.removeIf { SettingCache.isEnabled(it.uniqueId(), Setting.MUTE_PLAYERS) }
@@ -67,8 +68,6 @@ class DiscordSRVAddon(private val interactive: InteractiveChat) {
             ?.let(XaliChat.INSTANCE.server::getPlayer) ?: NOBODY
 
     private companion object {
-        const val FORMAT_PERMISSION = "xalichat.format.discord"
-
         /** A permissible with no permissions, for Discord users with no online linked player. */
         val NOBODY = PermissibleBase(null)
 
