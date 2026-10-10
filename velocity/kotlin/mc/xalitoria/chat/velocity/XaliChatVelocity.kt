@@ -1,11 +1,8 @@
 package mc.xalitoria.chat.velocity
 
-import com.google.inject.Inject
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.PluginMessageEvent
 import com.velocitypowered.api.event.player.ServerPostConnectEvent
-import com.velocitypowered.api.event.proxy.ProxyInitializeEvent
-import com.velocitypowered.api.plugin.annotation.DataDirectory
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.ServerConnection
 import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier
@@ -15,7 +12,6 @@ import mc.xalitoria.chat.protocol.Entry
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.protocol.Protocol
 import mc.xalitoria.chat.protocol.Reassembler
-import mc.xalitoria.loader.velocity.LibraryLoader
 import org.slf4j.Logger
 import java.nio.file.FileSystems
 import java.nio.file.Path
@@ -37,16 +33,13 @@ import kotlin.io.path.readText
  *
  * Messages are signed with the forwarding secret from velocity.toml and anything else is dropped.
  */
-class XaliChatVelocity @Inject constructor(
+class XaliChatVelocity(
     private val proxy: ProxyServer,
     private val logger: Logger,
-    @DataDirectory private val dataDirectory: Path,
-) {
-    // First, so the libraries (kaml and kotlinx.serialization) are on the class path before any class that needs them loads.
-    init {
-        LibraryLoader.load(this, dataDirectory.resolve("libraries"), logger)
-    }
-
+    private val dataDirectory: Path,
+    /** The loader Velocity knows as the plugin, which listeners are registered with. */
+    private val plugin: Any,
+) : Runnable, AutoCloseable {
     private val channel = MinecraftChannelIdentifier.from(Protocol.CHANNEL)
 
     /** One per server: a chunked transfer's id only means something to the server that made it. */
@@ -64,8 +57,7 @@ class XaliChatVelocity @Inject constructor(
      */
     private var secret = ""
 
-    @Subscribe
-    fun onProxyInitialization(event: ProxyInitializeEvent) {
+    override fun run() {
         val root = dataDirectory.toAbsolutePath().parent.parent // plugins/<id> sits under the folder holding velocity.toml
         secret = try {
             System.getenv("VELOCITY_FORWARDING_SECRET") ?: root.resolve(
@@ -84,8 +76,11 @@ class XaliChatVelocity @Inject constructor(
         watch(file)
 
         proxy.channelRegistrar.register(channel)
+        proxy.eventManager.register(plugin, this)
         logger.info("XaliChat relay ready on {} with {} announcements", Protocol.CHANNEL, store.announcements.size)
     }
+
+    override fun close() {}
 
     /** Servers that were empty when an update was sent for them get it as soon as someone joins. */
     @Subscribe

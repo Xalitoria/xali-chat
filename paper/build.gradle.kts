@@ -1,4 +1,3 @@
-import net.minecrell.pluginyml.bukkit.BukkitPluginDescription
 import java.io.File
 import java.net.URI
 import java.nio.file.Files
@@ -7,16 +6,16 @@ import java.security.MessageDigest
 
 plugins {
     kotlin("plugin.serialization")
-    alias(libs.plugins.paperyml)
     alias(libs.plugins.shadow)
 }
 
 dependencies {
     implementation(project(":chat:common"))
-    implementation(project(":loader"))
-    paperLibrary(libs.xalicraft.util)
-    paperLibrary(libs.bundles.database)
-    paperLibrary(libs.bundles.exposed)
+
+    // Libraries the server downloads when the plugin loads (see loader.json); nothing declared here is shaded.
+    api(libs.xalicraft.util)
+    api(libs.bundles.database)
+    api(libs.bundles.exposed)
 
     compileOnly(libs.paper.api)
     compileOnly(libs.discordsrv)
@@ -26,41 +25,6 @@ dependencies {
     compileOnly(libs.vaultunlocked)
     testImplementation(libs.xalicraft.util)
     testImplementation(libs.paper.api)
-}
-
-paper {
-    prefix = "XaliChat"
-    name = "XaliChat"
-    author = "audizian"
-    main = "mc.xalitoria.chat.paper.XaliChat"
-    loader = "mc.xalitoria.loader.paper.LibraryLoader"
-    version = project.version.toString()
-    description = project.description
-    website = "https://xalitoria.com"
-    foliaSupported = true
-    apiVersion = "26.1"
-    load = BukkitPluginDescription.PluginLoadOrder.POSTWORLD
-    generateLibrariesJson = true
-    serverDependencies {
-        register("SignedVelocity")
-        register("PlaceholderAPI")
-        register("ProtocolLib")
-        register("Vault") {
-            required = false
-        }
-        register("VaultUnlocked") {
-            required = false
-        }
-        register("DiscordSRV-Ascension") {
-            required = false
-        }
-        register("SuperVanish") {
-            required = false
-        }
-        register("PremiumVanish") {
-            required = false
-        }
-    }
 }
 
 val paperVersion = "26.2"
@@ -152,18 +116,8 @@ val runServer = tasks.register<JavaExec>("runServer") {
 
 tasks {
     jar { enabled = false }
-    generatePaperPluginDescription {
-        useDefaultCentralProxy()
-    }
     shadowJar {
-        // Named in the plugin yml, so nothing in the code refers to it and minimize() would drop it.
-        minimize { exclude(project(":loader")) }
-        exclude("mc/xalitoria/loader/velocity/**")
-        // Paper's library loader supplies the stdlib; a bundled copy would load in a second, incompatible classloader.
-        dependencies {
-            exclude(dependency("org.jetbrains.kotlin:kotlin-stdlib"))
-            exclude(dependency("org.jetbrains:annotations"))
-        }
+        minimize()
     }
     build {
         dependsOn(shadowJar)

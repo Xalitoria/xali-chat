@@ -12,6 +12,9 @@ each other.
 | `chat/velocity` | The Velocity plugin, `xali-chat-<version>-velocity.jar`: the [relay](#proxy-sync). It downloads kaml and kotlinx.serialization into `plugins/xalichat/libraries` the first time it starts (checksums are built into the jar), so the proxy needs internet access once. |
 | `chat/common` | The wire format both plugins speak (signed frames, chunking, message encodings). No platform API, so both jars bundle it. Targets Java 17. |
 
+The descriptors and the library loader of both plugins come from the [Gradle plugin](../plugin/README.md); the `paper { }` and
+`velocity { }` blocks are in `chat/build.gradle.kts`.
+
 `./gradlew :chat:paper:runServer` and `./gradlew :chat:velocity:runProxy` start a dev server and a dev proxy in each
 module's `run` folder, with the plugin installed. Every jar is built into the repository's `build/libs/<module>/`, for example
 `build/libs/chat/xali-chat-0.5.0-paper.jar`. The proxy there still needs its `velocity.toml` pointed at the server
