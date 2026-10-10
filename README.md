@@ -1,7 +1,20 @@
 # XaliChat
 
 Paper chat plugin: formatted chat, private messages, nicknames, ignore/mute settings, spying, chat logging, interactive
-chat tokens and optional DiscordSRV 3.0 (Ascension) integration.
+chat tokens and optional DiscordSRV 3.0 (Ascension) integration. A small Velocity plugin relays what the servers send
+each other.
+
+## Modules
+
+| Module | What it is |
+|---|---|
+| `chat/paper` | The Paper plugin, `xali-chat-<version>-paper.jar`. Everything below is this module unless it says otherwise. |
+| `chat/velocity` | The Velocity plugin, `xali-chat-<version>-velocity.jar`: the [relay](#proxy-sync). |
+| `chat/common` | The wire format both plugins speak (signed frames, chunking, message encodings). No platform API, so both jars bundle it. Targets Java 17. |
+
+`./gradlew :chat:paper:runServer` and `./gradlew :chat:velocity:runProxy` start a dev server and a dev proxy in each
+module's `run` folder, with the plugin installed. The proxy there still needs its `velocity.toml` pointed at the server
+and `player-info-forwarding-mode = "modern"`.
 
 Formatting accepts legacy `&` codes, `&#RRGGBB`, CMI gradients (`{#a0a>}text{#fff<}`) and MiniMessage tags, each limited
 by the format permissions below.
@@ -124,8 +137,8 @@ so setting up Velocity's modern forwarding is all it takes. Without it these fea
 of these messages: a client can send to a plugin channel too, and a forged config would run console commands.
 
 A plugin message needs a player's connection to ride on, so a message waits for the first player online. The proxy side
-isn't part of this repository; this is what it has to speak. All integers are big-endian and strings use Java's
-`writeUTF`.
+is `chat/velocity`; this is the format it and the server speak (the code is in `chat/common`). All integers are
+big-endian and strings use Java's `writeUTF`.
 
 | Frame | Layout | Meaning |
 |---|---|---|
@@ -135,8 +148,22 @@ isn't part of this repository; this is what it has to speak. All integers are bi
 | `BROADCAST` | `UTF "BROADCAST"`, `boolean bypassMute`, Adventure JSON of the message | Server to proxy from `/xgbroadcast`; proxy to every server, including the one that sent it. |
 | `ANNOUNCE` | `UTF "ANNOUNCE"`, `UTF key`, `UTF uuid`, `UTF name` (may be empty) | Server to proxy from `/xgannounce`; proxy to every server, including the sender. Servers not in the announcement's `servers` list skip it. |
 
-The proxy also needs to `minecraft:register` the channel with each server, as Velocity does for channels a proxy plugin
-registers. Unsigned or wrongly signed frames are ignored.
+Unsigned or wrongly signed frames are ignored.
+
+### Velocity relay
+
+Install `xali-chat-<version>-velocity.jar` in the proxy's `plugins` folder; it needs no config. It finds the forwarding
+secret the way Velocity does (the `VELOCITY_FORWARDING_SECRET` variable, else the file named by `forwarding-secret-file`
+in `velocity.toml`), registers the channel with the servers, and then:
+
+- relays a saved `announcements.yml` to every server except the one that sent it;
+- relays a global broadcast or announcement to every server, the sender included;
+- drops anything a player sends on the channel, and anything with a missing or wrong signature.
+
+Servers are told apart by the names in `velocity.toml`, but an announcement's `servers` list is checked by each server
+against its own `database.server-name`, so keep the two the same. The proxy stores nothing: a server that was offline
+when a config was saved gets the next one that is. Frames on the channel that aren't signed (the servers' player lookups
+for `/msg`) are left to whichever plugin answers them; this one doesn't.
 
 ## Interactive chat
 

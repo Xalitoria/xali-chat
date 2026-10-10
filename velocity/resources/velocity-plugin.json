@@ -1,0 +1,10 @@
+{
+  "id": "xalichat",
+  "name": "XaliChat",
+  "version": "${version}",
+  "description": "Relays XaliChat's config sync, global broadcasts and global announcements between servers.",
+  "url": "https://xalitoria.com",
+  "authors": ["audizian"],
+  "dependencies": [],
+  "main": "mc.xalitoria.chat.velocity.XaliChatVelocity"
+}
