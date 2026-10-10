@@ -11,6 +11,7 @@ import mc.xalitoria.chat.paper.command.argument.KnownPlayerArgument
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.nameOrId
+import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.paper.util.suggestMatching
 import mc.xalitoria.util.message.*
 import org.bukkit.OfflinePlayer
@@ -58,11 +59,7 @@ object AnnounceCommand: XCommand(XaliChat.INSTANCE) {
                     }
 
                     debug("/{0} by {1}: {2} for {3}", label, sender.name, key, target.nameOrId)
-                    val relayed = global && plugin.messenger.sendSigned("ANNOUNCE") {
-                        writeUTF(key)
-                        writeUTF(target.uniqueId.toString())
-                        writeUTF(target.name.orEmpty())
-                    }
+                    val relayed = global && plugin.messenger.send(Message.Announce(key, target.uniqueId, target.name))
                     if (!relayed) {
                         if (global) sender warn msg.localOnly
                         plugin.announcements.announce(key, target.uniqueId, target.name, respectServers = false)

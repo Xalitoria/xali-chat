@@ -12,6 +12,7 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":chat:common"))
     paperLibrary(libs.xalicraft.util)
     paperLibrary(libs.bundles.database)
     paperLibrary(libs.bundles.exposed)

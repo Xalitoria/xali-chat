@@ -14,6 +14,7 @@ import mc.xalitoria.chat.paper.data.config.Announcement
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.util.Colorizer
+import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.util.config.YamlFile
 import mc.xalitoria.util.message.fail
@@ -121,7 +122,7 @@ class Announcements(private val plugin: XaliChat) {
         if (changed && push && plugin.messenger.secret.isNotEmpty()) {
             pushing?.cancel()
             pushing = plugin.scope.launch {
-                while (!plugin.messenger.sendSigned("CONFIG_SYNC") { writeUTF(FILE); write(raw) }) delay(5.seconds)
+                while (!plugin.messenger.send(Message.ConfigSync(FILE, raw))) delay(5.seconds)
                 debug("Pushed {0} bytes of {1} to the proxy", raw.size, FILE)
             }
         }
@@ -130,6 +131,7 @@ class Announcements(private val plugin: XaliChat) {
 
     /** Takes the file the proxy relayed: writes it over ours and loads it, without sending it back. */
     fun receive(content: ByteArray) {
+        if (content.contentEquals(synced)) return
         plugin.scope.launch(Dispatchers.IO) {
             debug("Received {0} bytes of {1} from the proxy", content.size, FILE)
             synced = content

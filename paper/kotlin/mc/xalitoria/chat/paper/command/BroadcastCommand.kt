@@ -10,6 +10,7 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.util.Colorizer
+import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.util.message.*
 
 /**
@@ -43,10 +44,7 @@ object BroadcastCommand: XCommand(XaliChat.INSTANCE) {
                 val bypassesMute = sender.hasPermission(Permissions.BYP_MUTE_BROADCASTS)
                 debug("/{0} by {1}: bypassesMute={2}, message={3}", label, sender.name, bypassesMute, text)
 
-                val relayed = global && plugin.messenger.sendSigned("BROADCAST") {
-                    writeBoolean(bypassesMute)
-                    write(GCOMP.serialize(announcement).toByteArray())
-                }
+                val relayed = global && plugin.messenger.send(Message.Broadcast(bypassesMute, GCOMP.serialize(announcement)))
                 if (!relayed) {
                     if (global) sender warn msg.localOnly
                     plugin.announcements.send(bypassesMute) { listOf(announcement) }
