@@ -113,6 +113,22 @@ class AnnouncementStore {
     }
 
     @Test
+    fun wireJsonLeavesOutDefaults() {
+        val sender = store()
+        save("\"hi\":\n  messages:\n  - hello\n", 1_000)
+        val entry = sender.scan().single()
+        assertEquals("""{"messages":["hello"]}""", entry.json)
+
+        // The receiver fills the defaults back in and sees nothing to report once it has written the file.
+        val receiverDir = createTempDirectory("receiver")
+        val receiver = AnnouncementStore(receiverDir.resolve("announcements.yml"), receiverDir.resolve("state.json"))
+        assertTrue(receiver.apply(entry))
+        assertEquals(Announcement(messages = ["hello"]), receiver.announcements.getValue("hi"))
+        receiver.write()
+        assertTrue(receiver.scan().isEmpty())
+    }
+
+    @Test
     fun writtenEntriesAreNotReportedAgain() {
         val store = store()
         val json = Announcement(messages = ["hi"]).let { kotlinx.serialization.json.Json { encodeDefaults = true }.encodeToString(Announcement.serializer(), it) }

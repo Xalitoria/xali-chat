@@ -30,6 +30,9 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
 
     private val yaml = Yaml(configuration = YamlConfiguration(strictMode = false, encodeDefaults = true))
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
+
+    /** What travels: no fields left at their defaults, which the receiver fills in again. [json] is the form that is hashed. */
+    private val wire = Json { ignoreUnknownKeys = true }
     private val fileSerializer = MapSerializer(String.serializer(), Announcement.serializer())
     private val stateSerializer = MapSerializer(String.serializer(), Stamp.serializer())
     private val stamps = HashMap<String, Stamp>()
@@ -58,7 +61,7 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
             val hash = hash(announcement)
             if (stamps[key]?.hash != hash) {
                 stamps[key] = Stamp(hash, saved)
-                changes += Entry(key, saved, json.encodeToString(Announcement.serializer(), announcement))
+                changes += Entry(key, saved, wire.encodeToString(Announcement.serializer(), announcement))
             }
         }
         stamps.toMap().forEach { (key = key, stamp = value) ->
@@ -86,7 +89,7 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
             stamps[entry.key] = Stamp(null, entry.modified)
         } else {
             val announcement = try {
-                json.decodeFromString(Announcement.serializer(), entry.json)
+                wire.decodeFromString(Announcement.serializer(), entry.json)
             } catch (e: Exception) {
                 return false
             }
@@ -113,7 +116,7 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     fun entry(key: String): Entry? {
         val stamp = stamps[key] ?: return null
         val announcement = announcements[key] ?: return Entry(key, stamp.modified, null)
-        return Entry(key, stamp.modified, json.encodeToString(Announcement.serializer(), announcement))
+        return Entry(key, stamp.modified, wire.encodeToString(Announcement.serializer(), announcement))
     }
 
     /**

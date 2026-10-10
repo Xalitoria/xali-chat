@@ -159,7 +159,7 @@ A plugin message needs a player's connection to ride on, so a message waits for 
 is `chat/velocity`; this is the format it and the server speak (the code is in `chat/common`). All integers are
 big-endian and strings use Java's `writeUTF`. An *entries* field is an `int` count, then per entry `UTF key`, `long
 modified` (milliseconds when the key was saved) and an `int` length followed by that many bytes of the announcement as JSON
-(length -1 and no bytes for a removal).
+with the fields left at their defaults omitted (length -1 and no bytes for a removal).
 
 | Frame | Layout | Meaning |
 |---|---|---|
