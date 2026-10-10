@@ -1,3 +1,4 @@
+import xalitoria.loader.velocityLibraries
 import xalitoria.repo.kotlinx
 import java.net.URI
 import java.security.MessageDigest
@@ -6,12 +7,19 @@ plugins {
     alias(libs.plugins.shadow)
 }
 
-// :chat:common leaves kaml and kotlinx.serialization to whoever bundles it; Paper gets them from its library loader,
-// so the proxy plugin carries its own.
+// :chat:common leaves kaml and kotlinx.serialization to whoever packages it. Paper gets them from its library loader;
+// here they are downloaded when the plugin loads, so they are compiled against but not shaded. The Kotlin standard
+// library stays in the jar (velocityLibraries leaves it out of the download list): the plugin itself is Kotlin.
+val library by configurations.creating
+configurations.compileOnly { extendsFrom(library) }
+configurations.testImplementation { extendsFrom(library) }
+velocityLibraries(library)
+
 dependencies {
     implementation(project(":chat:common"))
-    implementation(libs.kaml)
-    implementation(kotlinx("serialization-json"))
+    implementation(project(":loader"))
+    library(libs.kaml)
+    library(kotlinx("serialization-json"))
     compileOnly(libs.velocity.api)
 }
 
@@ -72,9 +80,7 @@ tasks {
         filesMatching("velocity-plugin.json") { expand("version" to pluginVersion) }
     }
     shadowJar {
-        archiveClassifier.set("velocity")
-        archiveBaseName.set(rootProject.name + "-chat")
-        archiveVersion.set(version.toString())
+        exclude("mc/xalitoria/loader/paper/**")
     }
     build {
         dependsOn(shadowJar)

@@ -13,6 +13,7 @@ plugins {
 
 dependencies {
     implementation(project(":chat:common"))
+    implementation(project(":loader"))
     paperLibrary(libs.xalicraft.util)
     paperLibrary(libs.bundles.database)
     paperLibrary(libs.bundles.exposed)
@@ -32,7 +33,7 @@ paper {
     name = "XaliChat"
     author = "audizian"
     main = "mc.xalitoria.chat.paper.XaliChat"
-    loader = "mc.xalitoria.chat.paper.XaliChatLoader"
+    loader = "mc.xalitoria.loader.paper.LibraryLoader"
     version = project.version.toString()
     description = project.description
     website = "https://xalitoria.com"
@@ -155,10 +156,9 @@ tasks {
         useDefaultCentralProxy()
     }
     shadowJar {
-        archiveClassifier.set("paper")
-        archiveBaseName.set(rootProject.name + "-chat")
-        archiveVersion.set(version.toString())
-        minimize()
+        // Named in the plugin yml, so nothing in the code refers to it and minimize() would drop it.
+        minimize { exclude(project(":loader")) }
+        exclude("mc/xalitoria/loader/velocity/**")
         // Paper's library loader supplies the stdlib; a bundled copy would load in a second, incompatible classloader.
         dependencies {
             exclude(dependency("org.jetbrains.kotlin:kotlin-stdlib"))

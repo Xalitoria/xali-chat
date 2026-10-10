@@ -9,11 +9,12 @@ each other.
 | Module | What it is |
 |---|---|
 | `chat/paper` | The Paper plugin, `xali-chat-<version>-paper.jar`. Everything below is this module unless it says otherwise. |
-| `chat/velocity` | The Velocity plugin, `xali-chat-<version>-velocity.jar`: the [relay](#proxy-sync). |
+| `chat/velocity` | The Velocity plugin, `xali-chat-<version>-velocity.jar`: the [relay](#proxy-sync). It downloads kaml and kotlinx.serialization into `plugins/xalichat/libraries` the first time it starts (checksums are built into the jar), so the proxy needs internet access once. |
 | `chat/common` | The wire format both plugins speak (signed frames, chunking, message encodings). No platform API, so both jars bundle it. Targets Java 17. |
 
 `./gradlew :chat:paper:runServer` and `./gradlew :chat:velocity:runProxy` start a dev server and a dev proxy in each
-module's `run` folder, with the plugin installed. The proxy there still needs its `velocity.toml` pointed at the server
+module's `run` folder, with the plugin installed. Every jar is built into the repository's `build/libs/<module>/`, for example
+`build/libs/chat/xali-chat-0.5.0-paper.jar`. The proxy there still needs its `velocity.toml` pointed at the server
 and `player-info-forwarding-mode = "modern"`.
 
 Formatting accepts legacy `&` codes, `&#RRGGBB`, CMI gradients (`{#a0a>}text{#fff<}`) and MiniMessage tags, each limited

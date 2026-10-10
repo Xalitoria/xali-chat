@@ -15,6 +15,7 @@ import mc.xalitoria.chat.protocol.Entry
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.protocol.Protocol
 import mc.xalitoria.chat.protocol.Reassembler
+import mc.xalitoria.loader.velocity.LibraryLoader
 import org.slf4j.Logger
 import java.nio.file.FileSystems
 import java.nio.file.Path
@@ -41,6 +42,11 @@ class XaliChatVelocity @Inject constructor(
     private val logger: Logger,
     @DataDirectory private val dataDirectory: Path,
 ) {
+    // First, so the libraries (kaml and kotlinx.serialization) are on the class path before any class that needs them loads.
+    init {
+        LibraryLoader.load(this, dataDirectory.resolve("libraries"), logger)
+    }
+
     private val channel = MinecraftChannelIdentifier.from(Protocol.CHANNEL)
 
     /** One per server: a chunked transfer's id only means something to the server that made it. */
