@@ -2,21 +2,21 @@ package mc.xalitoria.chat.paper.modal.announce
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
-import kotlinx.serialization.builtins.MapSerializer
-import kotlinx.serialization.builtins.serializer
+import mc.xalitoria.chat.announce.Announcement
+import mc.xalitoria.chat.announce.AnnouncementStore
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.data.config.Announcement
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.util.Colorizer
+import mc.xalitoria.chat.protocol.Entry
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.util.bukkit.runTask
-import mc.xalitoria.util.config.YamlFile
 import mc.xalitoria.util.message.fail
 import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
@@ -26,8 +26,7 @@ import java.nio.file.FileSystems
 import java.nio.file.StandardWatchEventKinds.ENTRY_CREATE
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
 import java.util.UUID
-import kotlin.io.path.readBytes
-import kotlin.io.path.writeBytes
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
@@ -37,36 +36,47 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Runs the announcements in `announcements.yml`: the ones with a delay or repeat on their own timers, the rest when a
- * command or the proxy asks. The file is watched, so saving it reschedules everything and, once Velocity
- * forwarding is on, pushes the file to the proxy, which relays it to the other servers (see [receive]).
+ * command or the proxy asks.
+ *
+ * The proxy holds every announcement; this server's file holds the ones whose `servers` name it. Saving the file sends
+ * the keys that changed (new, edited or deleted) to the proxy, which keeps the newest save of each and passes it to
+ * the servers it names. What the proxy sends back is applied as it arrives, so nothing needs a reload. A key that
+ * stops naming this server, or was deleted elsewhere, stays in the file until the next `/xalichat reload` or restart,
+ * which asks the proxy what this server should hold and drops the rest. See [AnnouncementStore] for how saves are told apart.
  */
 class Announcements(private val plugin: XaliChat) {
-    val file = YamlFile(
-        plugin.dataPath.resolve(FILE),
-        MapSerializer(String.serializer(), Announcement.serializer()),
-        default = {
-            mapOf(
-                "example" to Announcement(
-                    enable = false,
-                    delay = 300,
-                    repeat = 1800,
-                    messages = ["&8&m------------------------------", "&dJoin our Discord: &fhttps://discord.gg/example", "&8&m------------------------------"],
-                    commands = ["playsound minecraft:block.note_block.pling master @a", "delay 2s 10t"],
-                )
-            )
-        },
-    )
-
     private val path = plugin.dataPath.resolve(FILE)
-    private var timers: List<Job> = []
-    private var pushing: Job? = null
+    private val store = AnnouncementStore(path, plugin.dataPath.resolve("announcements.state.json"))
 
-    /** The file as last loaded, sent or received; a save that leaves it unchanged is one of our own writes or a duplicate event. */
+    /** What is loaded: every key in the file, whether or not it still names this server. */
+    val announcements: Map<String, Announcement> get() = store.announcements
+
+    private var timers: List<Job> = []
+
+    /** Changes the proxy hasn't been sent yet, the newest per key, and whether it still has to be asked what to hold. */
+    private val outbox = ConcurrentHashMap<String, Entry>()
+
     @Volatile
-    private var synced = ByteArray(0)
+    private var pulling = false
+    private val wake = Channel<Unit>(Channel.CONFLATED)
 
     fun start() {
-        reload(push = false)
+        reload()
+
+        // A plugin message needs a player's connection to ride on, so sending waits for one.
+        plugin.scope.launch {
+            for (ignored in wake) {
+                while (outbox.isNotEmpty() || pulling) {
+                    val batch = outbox.values.toList()
+                    if (batch.isNotEmpty() && !plugin.messenger.send(Message.Push(batch))) { delay(5.seconds); continue }
+                    batch.forEach { outbox.remove(it.key, it) }
+                    if (pulling) {
+                        if (!plugin.messenger.send(Message.Pull(store.known()))) { delay(5.seconds); continue }
+                        pulling = false
+                    }
+                }
+            }
+        }
 
         // Editors save in several steps (temp file, rename), hence the wait before reading.
         plugin.scope.launch(Dispatchers.IO) {
@@ -78,35 +88,44 @@ class Announcements(private val plugin: XaliChat) {
                     key.reset()
                     if (!touched) continue
                     delay(300.milliseconds)
-                    try {
-                        if (!path.readBytes().contentEquals(synced)) reload()
-                    } catch (e: Exception) {
-                        debug("Could not read {0} after it changed: {1}", FILE, e)
-                    }
+                    load(force = false, pull = false)
                 }
             }
         }
     }
 
+    /** Loads the file, restarts every timer and asks the proxy what this server should hold: `/xalichat reload`. */
+    fun reload(): Boolean = load(force = true, pull = true)
+
     /**
-     * Loads the file and restarts every timer. A file that fails to parse is logged and the announcements already
-     * loaded stay. A changed file is also [push]ed to the proxy, waiting for a player to carry it if none is online.
+     * Reads the file and queues what changed for the proxy. A save that changed nothing (comments, our own writes)
+     * leaves the timers running unless [force]. A file that fails to parse is logged and the loaded announcements stay.
      */
     @Synchronized
-    fun reload(push: Boolean = true): Boolean {
-        val raw = try {
-            file.load()
-            path.readBytes()
+    private fun load(force: Boolean, pull: Boolean): Boolean {
+        val changes = try {
+            store.scan()
         } catch (e: Exception) {
             plugin.logger.fail("Failed to load $FILE; keeping the announcements already loaded.", e)
             return false
         }
-        val changed = !raw.contentEquals(synced)
-        synced = raw
+        if (force || changes.isNotEmpty()) schedule()
+        debug("Loaded {0} announcements, {1} on timers, {2} changed", announcements.size, timers.size, changes.size)
+        queue(changes, pull)
+        return true
+    }
 
+    private fun queue(changes: List<Entry>, pull: Boolean) {
+        if (plugin.messenger.secret.isEmpty()) return
+        changes.forEach { outbox[it.key] = it }
+        if (pull) pulling = true
+        if (outbox.isNotEmpty() || pulling) wake.trySend(Unit)
+    }
+
+    private fun schedule() {
         val serverName = plugin.config.data.database.serverName
         timers.forEach { it.cancel() }
-        timers = file.data
+        timers = announcements
             .filter { it.value.enable && (it.value.delay > 0 || it.value.repeat > 0) && it.value.appliesTo(serverName) }
             .map { (key = key, announcement = value) ->
                 plugin.scope.launch {
@@ -117,26 +136,29 @@ class Announcements(private val plugin: XaliChat) {
                     } while (announcement.repeat > 0)
                 }
             }
-        debug("Loaded {0} announcements, {1} on timers (changed={2})", file.data.size, timers.size, changed)
-
-        if (changed && push && plugin.messenger.secret.isNotEmpty()) {
-            pushing?.cancel()
-            pushing = plugin.scope.launch {
-                while (!plugin.messenger.send(Message.ConfigSync(FILE, raw))) delay(5.seconds)
-                debug("Pushed {0} bytes of {1} to the proxy", raw.size, FILE)
-            }
-        }
-        return true
     }
 
-    /** Takes the file the proxy relayed: writes it over ours and loads it, without sending it back. */
-    fun receive(content: ByteArray) {
-        if (content.contentEquals(synced)) return
+    /**
+     * Applies what the proxy sent. The file is read first, so a save that hasn't been picked up yet isn't written over
+     * (and goes to the proxy as usual); one that doesn't parse is left alone and the update is dropped.
+     */
+    fun receive(entries: List<Entry>) {
         plugin.scope.launch(Dispatchers.IO) {
-            debug("Received {0} bytes of {1} from the proxy", content.size, FILE)
-            synced = content
-            path.writeBytes(content)
-            reload(push = false)
+            synchronized(this@Announcements) {
+                val changes = try {
+                    store.scan()
+                } catch (e: Exception) {
+                    plugin.logger.fail("Dropped an update from the proxy: $FILE doesn't parse.", e)
+                    return@launch
+                }
+                val applied = entries.count { store.apply(it) }
+                debug("Applied {0} of {1} entries from the proxy", applied, entries.size)
+                if (applied > 0) {
+                    store.write()
+                    schedule()
+                }
+                queue(changes, pull = false)
+            }
         }
     }
 
@@ -146,7 +168,7 @@ class Announcements(private val plugin: XaliChat) {
      * each viewer gets their own. [respectServers] skips it when its `servers` list leaves this server out.
      */
     fun announce(key: String, uuid: UUID?, name: String?, respectServers: Boolean) {
-        val announcement = file.data[key]
+        val announcement = announcements[key]
             ?.takeIf { it.enable && (!respectServers || it.appliesTo(plugin.config.data.database.serverName)) }
         if (announcement == null) {
             debug("Announcement {0} skipped: unknown, disabled or not for this server", key)

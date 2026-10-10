@@ -36,7 +36,7 @@ object AnnounceCommand: XCommand(XaliChat.INSTANCE) {
             .executes { ctx -> ctx.source.sender fail msg.usage(label); Command.SINGLE_SUCCESS }
             .then(Commands
                 .argument("announcement", StringArgumentType.word())
-                .suggests { _, builder -> builder.suggestMatching(plugin.announcements.file.data.keys) }
+                .suggests { _, builder -> builder.suggestMatching(plugin.announcements.announcements.keys) }
                 .executes { ctx ->
                     val sender = ctx.source.sender
                     val permission = if (global) Permissions.CMD_ADMIN_ANNOUNCE_GLOBAL else Permissions.CMD_ADMIN_ANNOUNCE
@@ -48,7 +48,7 @@ object AnnounceCommand: XCommand(XaliChat.INSTANCE) {
 
                     val target = ctx.getArgument("player", OfflinePlayer::class.java)
                     val key = StringArgumentType.getString(ctx, "announcement")
-                    val announcement = plugin.announcements.file.data[key]
+                    val announcement = plugin.announcements.announcements[key]
                     if (announcement == null) {
                         sender fail msg.unknown(key)
                         return@executes Command.SINGLE_SUCCESS

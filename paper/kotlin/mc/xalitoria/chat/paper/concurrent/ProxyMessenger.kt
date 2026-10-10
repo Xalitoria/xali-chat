@@ -5,7 +5,6 @@ import com.charleskorn.kaml.YamlConfiguration
 import kotlinx.serialization.Serializable
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.modal.announce.Announcements
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.protocol.Protocol
 import mc.xalitoria.chat.protocol.Reassembler
@@ -78,12 +77,13 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
                 )
             }
             Protocol.SIGNED -> when (val opened = Protocol.open(secret, frame)) {
-                is Message.ConfigSync -> if (opened.file == Announcements.FILE) plugin.announcements.receive(opened.content)
+                is Message.Update -> plugin.announcements.receive(opened.entries)
                 is Message.Broadcast -> {
                     val component = GCOMP.deserialize(opened.json)
                     plugin.announcements.send(opened.bypassMute) { listOf(component) }
                 }
                 is Message.Announce -> plugin.announcements.announce(opened.key, opened.uuid, opened.name, respectServers = true)
+                is Message.Push, is Message.Pull -> debug("Ignored {0}: only the proxy takes it", opened::class.simpleName)
                 null -> debug("Ignored a proxy message with a missing or wrong signature")
             }
             else -> debug("Ignored proxy message {0}", subchannel)

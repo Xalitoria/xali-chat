@@ -1,3 +1,4 @@
+import xalitoria.repo.kotlinx
 import java.net.URI
 import java.security.MessageDigest
 
@@ -5,8 +6,12 @@ plugins {
     alias(libs.plugins.shadow)
 }
 
+// :chat:common leaves kaml and kotlinx.serialization to whoever bundles it; Paper gets them from its library loader,
+// so the proxy plugin carries its own.
 dependencies {
     implementation(project(":chat:common"))
+    implementation(libs.kaml)
+    implementation(kotlinx("serialization-json"))
     compileOnly(libs.velocity.api)
 }
 
@@ -70,7 +75,6 @@ tasks {
         archiveClassifier.set("velocity")
         archiveBaseName.set(rootProject.name + "-chat")
         archiveVersion.set(version.toString())
-        minimize()
     }
     build {
         dependsOn(shadowJar)

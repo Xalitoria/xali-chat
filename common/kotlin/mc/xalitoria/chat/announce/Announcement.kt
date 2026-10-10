@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.paper.data.config
+package mc.xalitoria.chat.announce
 
 import com.charleskorn.kaml.YamlComment
 import kotlinx.serialization.Serializable
@@ -15,7 +15,10 @@ data class Announcement(
     val delay: Long = 0,
     @YamlComment("Seconds between automatic runs; 0 runs it once.")
     val repeat: Long = 0,
-    @YamlComment("Servers (database.server-name in config.yml) that run it automatically or globally; empty means all.")
+    @YamlComment(
+        "Servers that hold and run it: names as the proxy knows them, with * and ? wildcards (skyblock-*).",
+        "Empty means every server. Only the servers listed keep it in their file.",
+    )
     val servers: List<String> = [],
     @YamlComment(
         "Chat lines. &-codes, &#RRGGBB and MiniMessage work; {name}, {uuid}, %player_name% and other",
@@ -28,5 +31,9 @@ data class Announcement(
     )
     val commands: List<String> = [],
 ) {
-    fun appliesTo(server: String): Boolean = servers.isEmpty() || servers.any { it.equals(server, ignoreCase = true) }
+    /** Whether [server] is named by [servers]: any entry matches, `*` stands for any text and `?` for one character. */
+    fun appliesTo(server: String): Boolean = servers.isEmpty() || servers.any { pattern ->
+        Regex(pattern.map { if (it == '*') ".*" else if (it == '?') "." else Regex.escape(it.toString()) }.joinToString(""), RegexOption.IGNORE_CASE)
+            .matches(server)
+    }
 }
