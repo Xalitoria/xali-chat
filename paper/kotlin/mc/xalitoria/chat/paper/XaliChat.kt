@@ -132,7 +132,9 @@ class XaliChat : JavaPlugin() {
         messageConfig.load()
         messageConfig.save()
         filterConfig.load()
+        filterConfig.data.compile()
         filterConfig.save()
+        if (filterConfig.data.invalid.isNotEmpty()) logger.warning("filter.yml has ${filterConfig.data.invalid.size} invalid patterns: ${filterConfig.data.invalid}")
         // Not created yet on the first reload; starting it loads the file itself.
         if (::announcements.isInitialized) announcements.reload()
         logger.pass(messageConfig.data.commands.reload.pass)

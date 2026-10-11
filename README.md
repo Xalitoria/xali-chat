@@ -193,6 +193,30 @@ in `velocity.toml`), registers the channel with the servers, and then:
 `database.server-name`, so keep the two the same. Frames on the channel that aren't signed (the servers' player lookups
 for `/msg`) are left to whichever plugin answers them; this one doesn't.
 
+## Chat filter
+
+`plugins/XaliChat/filter.yml` holds three lists of patterns; a message is blocked, with `commands.filter.blocked` sent
+to the sender, when one of them matches a word in it. It applies to public chat, and players with `xalichat.bypass.filter`
+skip it. `enabled: false` switches it off.
+
+| Key | Meaning |
+|---|---|
+| `censored` | The patterns that block a message. Starts as the bundled list (`censored-words.txt`, about 950 entries); keeping the key in the file replaces it with yours. |
+| `blacklist` | More patterns, checked against the message exactly as typed. |
+| `whitelist` | Words that are fine even though a pattern matches them. They are cut out of the message before `censored` is checked, so a censored word beside one is still caught (`black` passes, `black cock` doesn't). Starts with everyday words the look-alike rules hit (`no`, `ok`, `pls`, `white`, `soccer`...). Plain words: no look-alikes. |
+
+Patterns match whole words, case-insensitively, so `ass` doesn't catch `class`. Inside a pattern:
+
+- `?`, `|`, `( )` and `[ ]` are regex (`beaners?`, `black(s|y)`); groups never capture.
+- A **space** stands for any run of separators (spaces, `-`, `+`, `=`, `_`, `|`), or none: `bang bros` matches `bangbros` and `bang-bros`.
+- A letter stands for its **look-alikes**: `a` for `4` and `@`, `i` for `1` and `!`, `s` for `5` and `$`, `o` for `0`, and so on (`f0ck`, `b@stard`). The table is in `FilterConfig`.
+- A letter written **twice** stands for that letter any number of times (`ss` matches `s`, `ss` and `$$$`). A letter written once is exactly one letter, and `{2,}` after it gives a count (`as{2,}`).
+- `\regex\` between backslashes is used as written, with no look-alikes or separators (still whole words).
+
+Patterns that don't compile are skipped and listed in a warning in the log. `/xalichat reload` reloads the file. The
+look-alike rules are loose, so a pattern can match an ordinary word: run the `Filter` test in `chat/paper/test`, which
+checks every pattern against `test-resources/words.txt` and writes the hits to `matches.txt`, and add what it finds to `whitelist`.
+
 ## Interactive chat
 
 Typed tokens in chat are replaced with hoverable, clickable components. Disable the whole feature with
@@ -232,6 +256,7 @@ Decoration names: `obfuscated`/`magic`/`k`, `bold`/`b`/`l`, `strikethrough`/`st`
 
 | Permission | Effect |
 |---|---|
+| `xalichat.bypass.filter` | Your chat skips the [filter](#chat-filter). |
 | `xalichat.bypass.ignore` | Others' ignore lists don't hide your chat. |
 | `xalichat.bypass.message.ignore` | You can't be added to an ignore list. |
 | `xalichat.bypass.mute.players` | Your chat still reaches players who muted global chat. |
