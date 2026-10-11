@@ -28,9 +28,9 @@ class ChatEvent(private val plugin: XaliChat) : Listener {
         plugin.logs.chat(ChatLogEntry(System.currentTimeMillis(), player.uniqueId, player.name, rawText))
 
         val filter = plugin.filterConfig.data
-        val blockedBy = if (player.hasPermission(Permissions.BYP_FILTER)) null else filter.blockedBy(rawText)
-        if (blockedBy != null) {
-            debug("Chat from {0} blocked by filter entry {1}", player.name, blockedBy)
+        //&& filter.isBlocked(rawText)
+        if (filter.enabled && !player.hasPermission(Permissions.BYP_FILTER) ) {
+            debug("Chat from {0} blocked by filter", player.name)
             event.isCancelled = true
             player fail plugin.messageConfig.data.commands.filter.blocked
             return
