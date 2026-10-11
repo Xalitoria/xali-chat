@@ -11,28 +11,25 @@ import kotlin.test.assertTrue
  * Lists every permutation the entries of `test-resources/bad-words-rev.txt` stand for, and finds the entries that
  * overlap, so the filter can be trimmed. Writes to `test-resources`:
  *
- *  - `permutations.txt`: each entry with the words it spells out: alternatives, optional parts, `{n}` counts, spaces
- *    (with and without the separator) and doubled letters (stretched), but no look-alikes.
- *  - `permutations-leet.txt`: the same with every letter swapped for each of its look-alikes.
+ *  - `permutations.txt`: each entry with the words it spells out: alternatives, optional parts, `{n}` counts and
+ *    doubled letters (stretched). Only alphabetic words are listed, so a separator between words is left out
+ *    (`bang bros` is `bangbros`), and an entry with other characters in it (`women's`) lists none of those.
+ *    Look-alike characters (`FilterConfig`'s `charReplace`) are not used at all.
  *  - `duplicates.txt`: entries listed twice, alternatives repeated inside an entry, words spelled by several entries,
- *    and entries that other entries already match once look-alikes are counted (`nlgger` is matched by `nigger`).
+ *    and entries that other entries already match.
  *
- * The rules are those of `FilterConfig`: the entry is lowercased; `\regex\` is a regex as written; otherwise a pair of
- * identical letters is that letter repeated (`ss` is `s+`, `kkk` is `k+k`), a space is any run of separators (or none)
- * and each letter may be any of its look-alikes. The look-alike table is read from `FilterConfig.kt` itself, so it
- * can't drift from the filter. Where the rules are unbounded, the tool stops at a few repeats: see the settings below.
+ * The rules are those of `FilterConfig` apart from the look-alikes: the entry is lowercased; `\regex\` is a regex as
+ * written; otherwise a pair of identical letters is that letter repeated (`ss` is `s+`, `kkk` is `k+k`) and a space is
+ * any run of separators, or none. Where the rules are unbounded, the tool stops at a few repeats.
  *
  * Settings are system properties or environment variables (`filter.stretch` or `FILTER_STRETCH`):
  *  - `filter.stretch` (2): how many times a repeated letter may repeat.
  *  - `filter.list` (2000): at most this many permutations of an entry are listed or compared; a bigger entry is sampled.
- *  - `filter.leet.list` (200): the same for `permutations-leet.txt`, whose entries grow with every look-alike.
- *  - `filter.config`: where `FilterConfig.kt` is, if not in the usual place.
  */
 class FilterPermutations {
     private val directory = Path("test-resources")
     private val stretch = setting("filter.stretch", 2)
     private val listCap = setting("filter.list", 2000)
-    private val leetCap = setting("filter.leet.list", 200)
 
     private fun setting(name: String, default: Int) =
         (System.getProperty(name) ?: System.getenv(name.uppercase().replace('.', '_')))?.toIntOrNull() ?: default
@@ -41,7 +38,6 @@ class FilterPermutations {
 
     private sealed interface Node
     private class Lit(val text: String) : Node
-    private class Letter(val c: Char) : Node
     private class Stretch(val c: Char) : Node
     private object Sep : Node
     private class CharClass(val chars: List<Char>) : Node
@@ -51,11 +47,8 @@ class FilterPermutations {
 
     private class Unsupported(message: String) : Exception(message)
 
-    /**
-     * [letters]: a letter may be swapped for its look-alikes. [rules]: a pair of letters is a stretch and a space a
-     * separator. Both are off for a raw regex and for the look-alike table, which are read as plain regex.
-     */
-    private inner class Parser(private val text: String, private val letters: Boolean, private val rules: Boolean) {
+    /** [rules]: a pair of letters is a stretch and a space a separator. Off for a regex written as is. */
+    private inner class Parser(private val text: String, private val rules: Boolean) {
         private var i = 0
 
         fun parse(): Node = parseAlt().also { if (i < text.length) throw Unsupported("unbalanced ')' at $i") }
@@ -134,7 +127,6 @@ class FilterPermutations {
                         while (text.getOrNull(i) == '?' || text.getOrNull(i) == '+') i++
                         Stretch(c)
                     }
-                    letters -> Letter(c)
                     else -> Lit(c.toString())
                 }
                 else -> Lit(c.toString())
@@ -142,89 +134,64 @@ class FilterPermutations {
         }
     }
 
-    // ===== The look-alike table, read from FilterConfig.kt =====
-
-    private val lookAlikes: Map<Char, String> by lazy {
-        val path = (System.getProperty("filter.config") ?: System.getenv("FILTER_CONFIG"))?.let(::Path)
-            ?: Path("kotlin/mc/xalitoria/chat/paper/data/config/FilterConfig.kt")
-        val source = path.readText().substringAfter("charReplace = mapOf")
-        Regex("""'(.)'\s+to\s+"((?:[^"\\]|\\.)*)"""").findAll(source)
-            .associate { it.groupValues[1].single() to it.groupValues[2].replace(Regex("""\\(.)""")) { escape -> escape.groupValues[1] } }
-    }
-
-    /** What each letter may be written as: the table's regex read as the strings it matches. */
-    private val alternatives: Map<Char, List<String>> by lazy {
-        lookAlikes.mapValues { all(Parser(it.value, letters = false, rules = false).parse(), leet = false, Long.MAX_VALUE) }
-    }
-
-    private fun fragment(c: Char) = lookAlikes[c] ?: c.toString()
-
     // ===== Permutations =====
 
     private val saturated = 1_000_000_000_000L
 
-    private fun count(node: Node, leet: Boolean): Long = when (node) {
+    private fun count(node: Node): Long = when (node) {
         is Lit -> 1
-        is Letter -> if (leet) alternatives[node.c]?.size?.toLong() ?: 1 else 1
-        is Stretch -> stretch * (if (leet) alternatives[node.c]?.size?.toLong() ?: 1 else 1)
-        Sep -> 2
+        is Stretch -> stretch.toLong()
+        Sep -> 1
         is CharClass -> node.chars.size.toLong()
-        is Seq -> node.parts.fold(1L) { total, part -> times(total, count(part, leet)) }
-        is Alt -> node.options.sumOf { count(it, leet) }.coerceAtMost(saturated)
+        is Seq -> node.parts.fold(1L) { total, part -> times(total, count(part)) }
+        is Alt -> node.options.sumOf { count(it) }.coerceAtMost(saturated)
         is Repeat -> {
-            val each = count(node.node, leet)
+            val each = count(node.node)
             (node.min..node.max).sumOf { n -> (1..n).fold(1L) { total, _ -> times(total, each) } }.coerceAtMost(saturated)
         }
     }
 
     private fun times(a: Long, b: Long) = if (a != 0L && b > saturated / a) saturated else a * b
 
-    /** Every permutation of [node] (with repeats where it can be spelled several ways), when there are at most [limit] of them. */
-    private fun all(node: Node, leet: Boolean, limit: Long): List<String> {
-        require(count(node, leet) <= limit) { "too many permutations" }
-        return expand(node, leet)
-    }
-
-    private fun expand(node: Node, leet: Boolean): List<String> = when (node) {
+    /** Every permutation of [node], with repeats where it can be spelled several ways. Only call it when [count] is small. */
+    private fun expand(node: Node): List<String> = when (node) {
         is Lit -> listOf(node.text)
-        is Letter -> if (leet) alternatives[node.c] ?: listOf(node.c.toString()) else listOf(node.c.toString())
-        is Stretch -> (if (leet) alternatives[node.c] ?: listOf(node.c.toString()) else listOf(node.c.toString()))
-            .let { letters -> (1..stretch).flatMap { n -> product(List(n) { letters }) } }
-        Sep -> listOf("", " ")
+        is Stretch -> (1..stretch).map { node.c.toString().repeat(it) }
+        Sep -> listOf("")
         is CharClass -> node.chars.map { it.toString() }
-        is Seq -> product(node.parts.map { expand(it, leet) })
-        is Alt -> node.options.flatMap { expand(it, leet) }
-        is Repeat -> (node.min..node.max).flatMap { n -> product(List(n) { expand(node.node, leet) }) }
+        is Seq -> product(node.parts.map { expand(it) })
+        is Alt -> node.options.flatMap { expand(it) }
+        is Repeat -> (node.min..node.max).flatMap { n -> product(List(n) { expand(node.node) }) }
     }
 
     private fun product(lists: List<List<String>>): List<String> =
         lists.fold(listOf("")) { prefixes, options -> prefixes.flatMap { prefix -> options.map { prefix + it } } }
 
     /** One permutation of [node], chosen at random. */
-    private fun sample(node: Node, leet: Boolean, random: Random): String = when (node) {
+    private fun sample(node: Node, random: Random): String = when (node) {
         is Lit -> node.text
-        is Letter -> if (leet) alternatives[node.c]?.random(random) ?: node.c.toString() else node.c.toString()
-        is Stretch -> (1..random.nextInt(1, stretch + 1)).joinToString("") { sample(Letter(node.c), leet, random) }
-        Sep -> if (random.nextBoolean()) "" else " "
+        is Stretch -> node.c.toString().repeat(random.nextInt(1, stretch + 1))
+        Sep -> ""
         is CharClass -> node.chars.random(random).toString()
-        is Seq -> node.parts.joinToString("") { sample(it, leet, random) }
-        is Alt -> sample(node.options.random(random), leet, random)
-        is Repeat -> (1..random.nextInt(node.min, node.max + 1)).joinToString("") { sample(node.node, leet, random) }
+        is Seq -> node.parts.joinToString("") { sample(it, random) }
+        is Alt -> sample(node.options.random(random), random)
+        is Repeat -> (1..random.nextInt(node.min, node.max + 1)).joinToString("") { sample(node.node, random) }
     }
 
     /** The distinct permutations, all of them if there are at most [cap] ways to spell them, else a random [cap]. Also whether it is a sample. */
     private class Spellings(val words: List<String>, val sampled: Boolean)
 
-    /** A separator that ends up at either end of a word, or twice in a row (around an optional part that is left out), is no part of the word. */
-    private fun String.tidy() = trim().replace(Regex(" {2,}"), " ")
+    /** The alphabetic permutations only: a word with a space, a dot or a digit in it is not one. */
+    private fun String.alphabetic() = isNotEmpty() && all { it in 'a'..'z' }
 
-    private fun permutations(node: Node, leet: Boolean, cap: Int): Spellings {
-        if (count(node, leet) <= cap * 4L) {
-            val words = all(node, leet, cap * 4L).map { it.tidy() }.distinct().sorted()
+    /** The distinct alphabetic permutations, all of them if there are few ways to spell them, else a random [cap]. */
+    private fun permutations(node: Node, cap: Int): Spellings {
+        if (count(node) <= cap * 4L) {
+            val words = expand(node).filter { it.alphabetic() }.distinct().sorted()
             return Spellings(words.take(cap), words.size > cap)
         }
         val random = Random(1)
-        return Spellings(List(cap * 2) { sample(node, leet, random).tidy() }.distinct().sorted().take(cap), true)
+        return Spellings(List(cap * 4) { sample(node, random) }.filter { it.alphabetic() }.distinct().sorted().take(cap), true)
     }
 
     // ===== Matching: the regex the filter makes of an entry =====
@@ -235,8 +202,7 @@ class FilterPermutations {
 
     private fun regexOf(node: Node): String = when (node) {
         is Lit -> node.text.map { if (it.isLetterOrDigit()) "$it" else "\\$it" }.joinToString("")
-        is Letter -> fragment(node.c)
-        is Stretch -> fragment(node.c) + "+"
+        is Stretch -> "${node.c}+"
         Sep -> "[\\s\\-+=|_]*?"
         is CharClass -> node.chars.joinToString("", "[", "]") { "\\$it" }
         is Seq -> node.parts.joinToString("") { regexOf(it) }
@@ -251,9 +217,9 @@ class FilterPermutations {
             val raw = key.length > 2 && key.first() == '\\' && key.last() == '\\'
             if (raw) {
                 val body = key.substring(1, key.length - 1)
-                Entry(text, Parser(body, letters = false, rules = false).parse(), Regex(body, RegexOption.IGNORE_CASE), null)
+                Entry(text, Parser(body, rules = false).parse(), Regex(body, RegexOption.IGNORE_CASE), null)
             } else {
-                val node = Parser(key, letters = true, rules = true).parse()
+                val node = Parser(key, rules = true).parse()
                 Entry(text, node, Regex(regexOf(node), RegexOption.IGNORE_CASE), null)
             }
         } catch (e: Unsupported) {
@@ -274,9 +240,7 @@ class FilterPermutations {
         val alphabet = mutableSetOf<Char>()
         fun lengths(node: Node): IntRange = when (node) {
             is Lit -> node.text.also { alphabet += it.toList() }.length.let { it..it }
-            is Letter -> (alternatives[node.c] ?: listOf(node.c.toString())).also { options -> alphabet += options.flatMap { it.toList() } }
-                .let { options -> options.minOf { it.length }..options.maxOf { it.length } }
-            is Stretch -> lengths(Letter(node.c)).let { it.first..Int.MAX_VALUE / 2 }
+            is Stretch -> 1.also { alphabet += node.c }..Int.MAX_VALUE / 2
             Sep -> 0.also { alphabet += " -+=|_\t".toList() }..1
             is CharClass -> 1.also { alphabet += node.chars }..1
             is Seq -> node.parts.map(::lengths).let { parts -> parts.sumOf { it.first }..parts.sumOf { it.last.toLong() }.coerceAtMost(Int.MAX_VALUE / 2L).toInt() }
@@ -321,52 +285,36 @@ class FilterPermutations {
         val entries = parseList(source.readText())
         val parsed = entries.map(::entry)
         val valid = parsed.filter { it.node != null }
-        println("Entries: ${entries.size}, readable: ${valid.size}, look-alikes: ${lookAlikes.size}")
+        println("Entries: ${entries.size}, readable: ${valid.size}")
 
-        fun header(title: String) = listOf("# $title", "# ${entries.size} entries from $source; repeated letters stretch up to $stretch; look-alikes from FilterConfig.kt", "")
+        fun header(title: String) = listOf("# $title", "# ${entries.size} entries from $source; repeated letters stretch up to $stretch; alphabetic words only, no look-alikes", "")
 
-        // Permutations, with and without look-alikes
-        for (leet in listOf(false, true)) {
-            val file = if (leet) "permutations-leet.txt" else "permutations.txt"
-            val cap = if (leet) leetCap else listCap
-            var total = 0L
-            directory.resolve(file).bufferedWriter().use { out ->
-                header(if (leet) "Permutations with every look-alike" else "Permutations").forEach { out.appendLine(it) }
-                parsed.forEach { entry ->
-                    val node = entry.node
-                    if (node == null) {
-                        out.appendLine("${entry.text}\tNOT READ: ${entry.error}")
-                        return@forEach
-                    }
-                    val possible = count(node, leet)
-                    val spelled = permutations(node, leet, cap)
-                    total += possible
-                    out.appendLine("${entry.text}\t$possible ways" + if (spelled.sampled) " (listing ${spelled.words.size})" else "")
-                    spelled.words.forEach { out.appendLine("\t$it") }
+        // Permutations
+        var total = 0L
+        var listed = 0L
+        directory.resolve("permutations.txt").bufferedWriter().use { out ->
+            header("Permutations").forEach { out.appendLine(it) }
+            parsed.forEach { entry ->
+                val node = entry.node
+                if (node == null) {
+                    out.appendLine("${entry.text}\tNOT READ: ${entry.error}")
+                    return@forEach
                 }
+                val spelled = permutations(node, listCap)
+                total += count(node)
+                listed += spelled.words.size
+                out.appendLine("${entry.text}\t${spelled.words.size} words" + if (spelled.sampled) " (a sample: there are more)" else if (spelled.words.isEmpty()) " (none are alphabetic)" else "")
+                spelled.words.forEach { out.appendLine("\t$it") }
             }
-            println("$file: ${"%,d".format(total)} ways to spell the entries")
         }
+        println("permutations.txt: ${"%,d".format(listed)} words listed, ${"%,d".format(total)} ways to spell the entries")
 
         // Duplicates
         val report = mutableListOf<String>()
         val random = Random(1)
-        val spellings = valid.associateWith { permutations(it.node!!, leet = false, listCap) }
+        val spellings = valid.associateWith { permutations(it.node!!, listCap) }
         val words = spellings.mapValues { it.value.words }
-        val sampled = valid.filter { count(it.node!!, false) > listCap * 4L }.size
-
-        // 0. The look-alike table
-        report += "## 0. Look-alike table (${lookAlikes.size} letters)"
-        lookAlikes.forEach { (letter = key, regex = value) ->
-            val options = alternatives.getValue(letter)
-            val notes = listOfNotNull(
-                "does not match the letter itself".takeIf { letter.toString() !in options },
-                "has regex syntax among its characters".takeIf { options.any { option -> option.any { it in "()?+:" } } },
-                lookAlikes.filter { it.key != letter && alternatives.getValue(it.key).toSet() == options.toSet() }.keys.takeIf { it.isNotEmpty() }
-                    ?.let { "same as ${it.joinToString()}" },
-            )
-            report += "\t$letter\t$regex\t${options.size}" + if (notes.isEmpty()) "" else "\t<- ${notes.joinToString("; ")}"
-        }
+        val sampled = valid.filter { count(it.node!!) > listCap * 4L }.size
 
         // 1. The same entry twice
         val twice = parsed.groupBy { it.key }.filter { it.value.size > 1 }
@@ -379,7 +327,7 @@ class FilterPermutations {
         fun walk(entry: Entry, node: Node) {
             when (node) {
                 is Alt -> {
-                    val options = node.options.map { if (count(it, false) <= 5000) expand(it, false).toSet() else emptySet() }
+                    val options = node.options.map { if (count(it) <= 5000) expand(it).toSet() else emptySet() }
                     val overlap = options.flatMapIndexed { i, a -> options.drop(i + 1).flatMap { b -> a intersect b } }.toSet()
                     if (overlap.isNotEmpty()) repeated += "\t${entry.key}\t(${node.options.size} alternatives) both spell: ${overlap.take(8).joinToString(", ")}"
                     node.options.forEach { walk(entry, it) }
@@ -404,7 +352,7 @@ class FilterPermutations {
             keys.forEachIndexed { i, a -> keys.drop(i + 1).forEach { b -> pairs.getOrPut(listOf(a, b)) { mutableListOf() }.add(word.key) } }
         }
         report += ""
-        report += "## 3. Words spelled by more than one entry, as written, without look-alikes (${shared.size} words, ${pairs.size} pairs of entries)"
+        report += "## 3. Words spelled by more than one entry (${shared.size} words, ${pairs.size} pairs of entries)"
         pairs.entries.sortedByDescending { it.value.size }.forEach { pair ->
             val sizes = pair.key.map { key -> spellings.entries.first { it.key.key == key }.value.let { "${it.words.size}" + if (it.sampled) "+" else "" } }
             report += "\t${pair.value.size} shared\t${pair.key[0]}  (spells ${sizes[0]})\t${pair.key[1]}  (spells ${sizes[1]})\te.g. ${pair.value.take(4).joinToString(", ")}"
@@ -434,8 +382,8 @@ class FilterPermutations {
         val rows = covered.entries.sortedWith(compareByDescending<Map.Entry<Entry, Int>> { it.value.toDouble() / candidates.getValue(it.key).size }.thenByDescending { it.value })
         val whole = rows.filter { it.value == candidates.getValue(it.key).size }
         report += ""
-        report += "## 4. Entries that other entries already match, look-alikes counted (${whole.size} entirely, ${rows.size - whole.size} partly)"
-        report += "\tEach spelling of an entry is tried against every other entry's regex. An entry that is matched entirely adds nothing."
+        report += "## 4. Entries that other entries already match (${whole.size} entirely, ${rows.size - whole.size} partly)"
+        report += "\tEach spelling of an entry is tried against every other entry's regex (stretched letters and optional separators included). An entry that is matched entirely adds nothing."
         rows.forEach { row ->
             val total = candidates.getValue(row.key).size
             val by = covers.getValue(row.key).entries.sortedByDescending { it.value }.take(4)
@@ -453,33 +401,31 @@ class FilterPermutations {
             header("Duplicates") + listOf("# $sampled entries have more spellings than the list limit ($listCap); their spellings are a random sample.", "") + report,
         )
         println("Duplicates: ${twice.size} repeated entries, ${repeated.size} repeated alternatives, ${shared.size} shared words, ${whole.size} entries matched entirely by others, ${rows.size - whole.size} partly")
-        println("Written to $directory: permutations.txt, permutations-leet.txt, duplicates.txt")
+        println("Written to $directory: permutations.txt, duplicates.txt")
     }
 
     // ===== Checks that the tool reads the rules the way the filter does =====
 
-    private fun spell(text: String, leet: Boolean = false) = permutations(entry(text).node!!, leet, 100_000).words
+    private fun spell(text: String) = permutations(entry(text).node!!, 100_000).words
 
     @Test
     fun rules() {
         assertEquals(listOf("beaner", "beaners"), spell("beaners?"))
         assertEquals(listOf("blacks", "blacky"), spell("black(s|y)"))
-        assertEquals(listOf("bang bros", "bangbros"), spell("bang bros"))
+        assertEquals(listOf("bangbros"), spell("bang bros"), "only alphabetic words: the separator is left out")
         assertEquals(listOf("s", "ss"), spell("ss"))
         assertEquals(listOf("kk", "kkk"), spell("kkk"), "a pair stretches and the third letter stays: k+k")
         assertEquals(listOf("bbc"), spell("\\b{2}c\\"))
-        assertEquals(listOf("s.o.b."), spell("s\\.o\\.b\\."))
+        assertEquals(emptyList(), spell("s\\.o\\.b\\."), "a dot is not alphabetic")
         assertEquals(listOf("fuck", "fuk"), spell("fu(c)?k"))
         assertEquals(listOf("a", "ab"), spell("a(b)?"))
-        assertTrue("@" in alternatives.getValue('a') && "4" in alternatives.getValue('a'))
-        assertTrue(spell("ash", leet = true).containsAll(listOf("@sh", "4zn", "asn")))
+        assertEquals(listOf("a"), spell("a(\\-b)?"))
     }
 
     @Test
     fun matching() {
-        assertTrue(entry("nigger").regex!!.matches("nlgger"), "a look-alike of the entry")
+        assertFalse(entry("nigger").regex!!.matches("nlgger"), "no look-alikes")
         assertTrue(entry("bang bros").regex!!.matches("bangbros") && entry("bang bros").regex!!.matches("bang-bros"))
-        assertTrue(entry("ass").regex!!.matches("@ss"))
         assertTrue(entry("ass").regex!!.matches("as"), "a pair of letters is `s+`, so one is enough")
         assertFalse(entry("kkk").regex!!.matches("k"), "but `kkk` is `k+k`")
         assertTrue(entry("\\b{2}c\\").regex!!.matches("BBC"))
