@@ -106,7 +106,7 @@ class Announcements(private val plugin: XaliChat) {
         val changes = try {
             store.scan()
         } catch (e: Exception) {
-            plugin.logger.fail("Failed to load $FILE; keeping the announcements already loaded.", e)
+            plugin.logger.fail("$FILE is not valid YAML, so nothing is synced and the announcements already loaded are kept; the last working version is in $FILE.bak.", e)
             return false
         }
         if (force || changes.isNotEmpty()) schedule()

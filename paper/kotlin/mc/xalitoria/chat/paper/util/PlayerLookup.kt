@@ -33,15 +33,24 @@ val OfflinePlayer.nameOrId: String
 fun Server.visiblePlayerNames(viewer: CommandSender): List<String> =
     onlinePlayers.filter { VanishAPI.canSee(viewer, it) }.map { it.name }
 
+/**
+ * Names to tab-complete for [viewer]: this server's visible players and everyone else on the proxy that they can see.
+ * A local player the viewer can't see stays out even if the proxy doesn't know they are vanished.
+ */
+fun Server.completablePlayerNames(viewer: CommandSender): List<String> {
+    val unseen = onlinePlayers.filterNot { VanishAPI.canSee(viewer, it) }.map { it.name }.toSet()
+    return (visiblePlayerNames(viewer) + ProxyPlayers.visibleTo(viewer).filter { it !in unseen }).distinct().filter { it != viewer.name }
+}
+
 /** Adds every one of [names] matching what's typed so far (see `stringFilter`). */
 fun SuggestionsBuilder.suggestMatching(names: Collection<String>): CompletableFuture<Suggestions> {
     names.stringFilter(remaining).forEach { suggest(it) }
     return buildFuture()
 }
 
-/** Tab-completes the names of online players the sender can see, plus any [extra] words. */
+/** Tab-completes the names of players the sender can see, on this server and the proxy, plus any [extra] words. */
 fun <T> RequiredArgumentBuilder<CommandSourceStack, T>.suggestOnlinePlayers(
     server: Server,
     extra: List<String> = [],
 ): RequiredArgumentBuilder<CommandSourceStack, T> =
-    suggests { ctx, builder -> builder.suggestMatching(server.visiblePlayerNames(ctx.source.sender) + extra) }
+    suggests { ctx, builder -> builder.suggestMatching(server.completablePlayerNames(ctx.source.sender) + extra) }

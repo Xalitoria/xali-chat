@@ -17,16 +17,16 @@ import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.util.message.*
 import org.bukkit.entity.Player
 
-/** `/xmute <players|broadcasts>` toggles the sender's own setting to hide global chat or broadcasts. */
-object MuteCommand: XCommand(XaliChat.INSTANCE) {
-    override val description: String = "Chat and broadcast mute settings"
-    override val mainCommand = "xmute"
-    override val aliases: List<String> = ["mute"]
+/** `/xsilence <players|broadcasts>` toggles the sender's own setting to hide global chat or broadcasts. */
+object SilenceCommand: XCommand(XaliChat.INSTANCE) {
+    override val description: String = "Chat and broadcast silence settings"
+    override val mainCommand = "xsilence"
+    override val aliases: List<String> = ["silence"]
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
         .then(toggle("players", Setting.MUTE_PLAYERS, Permissions.SET_MUTE_PLAYERS, plugin))
         .then(toggle("broadcasts", Setting.MUTE_BROADCASTS, Permissions.SET_MUTE_BROADCASTS, plugin))
-        .executes { ctx -> ctx.source.sender fail msg.usage("xmute"); Command.SINGLE_SUCCESS }
+        .executes { ctx -> ctx.source.sender fail msg.usage("xsilence"); Command.SINGLE_SUCCESS }
 
     private fun toggle(label: String, setting: Setting, permission: String, plugin: XaliChat) = Commands
         .literal(label)
@@ -35,7 +35,7 @@ object MuteCommand: XCommand(XaliChat.INSTANCE) {
             when {
                 sender !is Player -> sender fail playerCommandOnly
                 !sender.hasPermission(permission) -> {
-                    debug("/xmute {0} denied for {1}: missing {2}", label, sender.name, permission)
+                    debug("/xsilence {0} denied for {1}: missing {2}", label, sender.name, permission)
                     sender fail noPermission
                 }
                 else -> plugin.scope.launch(Dispatchers.IO) {

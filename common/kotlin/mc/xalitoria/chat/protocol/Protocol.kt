@@ -1,9 +1,6 @@
 package mc.xalitoria.chat.protocol
 
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
+import java.io.*
 import java.security.MessageDigest
 import java.util.UUID
 import javax.crypto.Mac
@@ -53,7 +50,8 @@ object Protocol {
     }
 
     /** The message in a whole `SIGNED` [frame]; null when it is unsigned, forged, signed with another secret or unknown. */
-    fun open(secret: String, frame: ByteArray): Message? {
+    fun open(secret: String?, frame: ByteArray): Message? {
+        val secret = secret.orEmpty()
         if (secret.isBlank()) return null
         val input = DataInputStream(ByteArrayInputStream(frame))
         if (input.readUTF() != SIGNED) return null

@@ -1,6 +1,6 @@
 # XaliChat
 
-Paper chat plugin: formatted chat, private messages, nicknames, ignore/mute settings, spying, chat logging, interactive
+Paper chat plugin: formatted chat, private messages, nicknames, ignore/silence settings, spying, chat logging, interactive
 chat tokens and optional DiscordSRV 3.0 (Ascension) integration. A small Velocity plugin relays what the servers send
 each other.
 
@@ -29,15 +29,19 @@ Every command's main label starts with `x`. Each alias works with and without th
 `/xbc`, `/bc`), and each command is also a subcommand of `/xalichat` under its names without the `x`
 (`/xalichat broadcast`, `/xalichat bc`). The tables below list the main label and the aliases without the `x`.
 
+When another plugin (EssentialsX, for one) already owns a plain label such as `/reply` or `/nickname`, XaliChat takes it over
+at startup and logs which labels it took. `/xsilence` has no `/mute` alias, so punishment plugins keep `/mute`.
+
 | Command | Aliases | Description | Permission |
 |---|---|---|---|
 | `/xalichat reload` | `chat` | Reload the config, messages and `announcements.yml`. | `xalichat.reload` |
-| `/xmessage <target> [message]` | `message`, `msg` | Send a private message. | `xalichat.message` |
-| `/xspam say <repeat> <message>` | `spam`, `alispam` | Send a message repeatedly. | `xalichat.spam` |
+| `/xmessage <target> [message]` | `message`, `msg` | Send a private message, to a player on any server behind the proxy. | `xalichat.message` |
+| `/xreply <message>` | `reply`, `r` | Answer the last player you exchanged a private message with, on any server. Forgotten when you leave the server. | `xalichat.message` |
+| `/xspam say <repeat> <message>` | `spam` | Send a message repeatedly. | `xalichat.spam` |
 | `/xspam stop` | | Stop your repeating message. | `xalichat.spam` |
 | `/xignore <player>` | `ignore` | Toggle ignoring a player's chat and messages. | `xalichat.ignore` |
-| `/xmute players` | `mute` | Toggle hiding global chat from other players (your own setting). | `xalichat.setting.mute.players` |
-| `/xmute broadcasts` | `mute` | Toggle hiding broadcasts and announcements (your own setting). | `xalichat.setting.mute.broadcasts` |
+| `/xsilence players` | `silence` | Toggle hiding global chat from other players (your own setting). | `xalichat.setting.mute.players` |
+| `/xsilence broadcasts` | `silence` | Toggle hiding broadcasts and announcements (your own setting). | `xalichat.setting.mute.broadcasts` |
 | `/xcommandspy` | `commandspy` | Toggle seeing other players' commands. | `xalichat.admin.spy.command` |
 | `/xsocialspy` | `socialspy` | Toggle seeing private messages. | `xalichat.admin.spy.social` |
 | `/xnickname <nickname\|reset>` | `nickname`, `nick` | Set or clear your nickname. | `xalichat.command.nickname` |
@@ -67,7 +71,7 @@ numbers, `.`, `_` and `-`, so they always stay inside the `exports` folder.
 
 ## Announcements
 
-`plugins/XaliChat/announcements.yml` maps a key to an announcement. The file is created the first time you save one.
+`plugins/XaliChat/announcements.yml` maps a key to an announcement. The proxy's copy is the master and is created, with two switched-off examples, on its first start; a server's file holds only the keys that name it.
 
 ```yaml
 "discord":
@@ -186,12 +190,30 @@ in `velocity.toml`), registers the channel with the servers, and then:
 - keeps the master `plugins/xalichat/announcements.yml` (with its `announcements.state.json`), applies what servers
   `PUSH`, answers their `PULL`s, and sends every key that changed to the servers it names. Edit the master by hand
   and it is spread the same way;
-- relays a global broadcast or announcement to every server, the sender included;
+- relays a global broadcast or announcement to every server, the sender included, and logs it to its own console
+  (`[Broadcast from <server>] <text>`; how far it was relayed is only logged with `debug: true`);
+- sends every server the names of everyone on the proxy, for tab-completing `/msg`, whenever someone joins, leaves or
+  vanishes (a burst of those sends one list, after `tab-completion.debounce`). With PremiumVanish on the proxy, a
+  vanished player is left out for each player who can't see them, as PremiumVanish decides;
+- finds the player a `/msg` is for when they are on another server (unless `cross-server-messages` is off, see below) (by name, or the start of one), passes the message
+  to that server, and tells the sender's server how it went: delivered, no such player online, or ignored (the
+  receiving server checks the ignore list, since it is the one that has it). Social spies are told on both servers;
 - drops anything a player sends on the channel, and anything with a missing or wrong signature.
 
+Private messages between servers can be switched off for the whole proxy (`cross-server-messages.enable` in its
+`config.yml`), limited to some servers (`cross-server-messages.servers`, wildcards like `skyblock-*`; a message needs the
+sender's and the receiver's server both listed), or switched off for one server with `cross-server-messages: false` in
+that server's `config.yml`. A server that is out gets "not found" for players elsewhere and is not found itself. A
+vanished player (SuperVanish/PremiumVanish) the sender can't see counts as not found, on this server and through the proxy.
+
+The first start writes `plugins/xalichat/config.yml` (`debug`, `tab-completion`, `cross-server-messages`) and a
+master `announcements.yml` holding two switched-off examples, so there is something to edit.
+
 `servers` patterns are matched against the server names in `velocity.toml`, and each server checks them against its own
-`database.server-name`, so keep the two the same. Frames on the channel that aren't signed (the servers' player lookups
-for `/msg`) are left to whichever plugin answers them; this one doesn't.
+`database.server-name`, so keep the two the same.
+
+Only a file that is valid YAML is synced. A save that doesn't parse (on the proxy or a server) is logged and changes
+nothing; the last working version is written beside it as `announcements.yml.bak`, so the fix is an edit away.
 
 ## Interactive chat
 

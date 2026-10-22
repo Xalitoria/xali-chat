@@ -1,5 +1,6 @@
 package mc.xalitoria.chat.paper.listener
 
+import mc.xalitoria.chat.paper.util.ReplyTracker
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
@@ -67,5 +68,6 @@ class PlayerCacheListener(private val plugin: XaliChat) : Listener {
         SettingCache.evict(uuid)
         SpyState.commandSpies.remove(uuid)
         SpyState.socialSpies.remove(uuid)
+        ReplyTracker.forget(event.player)
     }
 }

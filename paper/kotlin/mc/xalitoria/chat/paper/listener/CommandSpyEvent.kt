@@ -23,7 +23,8 @@ class CommandSpyEvent(private val plugin: XaliChat) : Listener {
         val raw = event.message.removePrefix("/")
         // `/xalichat msg ...` is a message command too, so look past the root label.
         val words = raw.lowercase().split(' ')
-        if ((if (words[0] in CommandAliases.XALICHAT) words.getOrElse(1) { "" } else words[0]) in CommandAliases.MESSAGE) return
+        val label = words[0].substringAfter(':')
+        if ((if (label in CommandAliases.XALICHAT) words.getOrElse(1) { "" }.substringAfter(':') else label) in CommandAliases.PRIVATE) return
 
         debug("Command spy: /{0} by {1} shown to {2} watchers", raw.substringBefore(' '), player.name, SpyState.commandSpies.size)
         val msg = plugin.messageConfig.data.commands.commandSpy

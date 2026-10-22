@@ -18,9 +18,10 @@ object XaliChatCommand: XCommand(XaliChat.INSTANCE) {
 
     val commands: List<XCommand> = [
         MessageCommand,
+        ReplyCommand,
         SpamCommand,
         IgnoreCommand,
-        MuteCommand,
+        SilenceCommand,
         CommandSpyCommand,
         SocialSpyCommand,
         ChatLogCommand,

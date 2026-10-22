@@ -1,0 +1,119 @@
+# Duplicates
+# 955 entries from test-resources/bad-words-rev.txt; repeated letters stretch up to 2; alphabetic words only, no look-alikes
+
+# 1 entries have more spellings than the list limit (2000); their spellings are a random sample.
+
+
+## 1. Entries written more than once (2)
+	2x	god
+	2x	wanker
+
+## 2. Alternatives that spell the same word inside one entry (1)
+	(cumm|jizz|semen) (bubble|bucket|fest|jockey|er|ing|quat|queen|shot|ed|er|ing|s)?	(13 alternatives) both spell: er, ing
+
+## 3. Words spelled by more than one entry (59 words, 35 pairs of entries)
+	20 shared	(f|ph)c?u(g?kk|q) ((a|e|i|o|u)rs?|ed|s)  (spells 240)	(f|ph)c?u(g?kk|q) (a|able|bag|buddy|face|fest|freak|friend|head|her|in(a|g)?|nuts?|me?|monkey|off|pig|tard|wh?it|you)? (hard|s)?  (spells 1600)	e.g. fcugkks, fcugks, fcukks, fcuks
+	2 shared	jigaboo  (spells 2)	jiggaboo  (spells 4)	e.g. jigabo, jigaboo
+	2 shared	jiggabo  (spells 2)	jiggaboo  (spells 4)	e.g. jigabo, jiggabo
+	2 shared	muff diver  (spells 2)	muffdiver  (spells 2)	e.g. mufdiver, muffdiver
+	2 shared	nigg(aa|ee|ii|oo|uu)r?(h|rd)?s?  (spells 240)	nigga  (spells 2)	e.g. niga, nigga
+	2 shared	picaninny  (spells 2)	piccaninny  (spells 4)	e.g. picaninny, picaniny
+	2 shared	piss pig  (spells 2)	pisspig  (spells 2)	e.g. pispig, pisspig
+	2 shared	shhit  (spells 2)	sshhiitt  (spells 16)	e.g. shhit, shit
+	1 shared	(on)? (black|blonde?|brown|bruunette|yellow|white|dp) (action)?  (spells 48)	whitey? (power|trash)?  (spells 6)	e.g. white
+	1 shared	(cam)? w?hoa?re? (house)?  (spells 32)	cam (girl|slut|whore)  (spells 3)	e.g. camwhore
+	1 shared	fa?eces  (spells 2)	feces  (spells 1)	e.g. feces
+	1 shared	felatio  (spells 1)	fellatio  (spells 2)	e.g. felatio
+	1 shared	(fe)?male squirt(ed|er|ing|s)  (spells 8)	male squirting  (spells 1)	e.g. malesquirting
+	1 shared	gay sex  (spells 1)	gaysex  (spells 1)	e.g. gaysex
+	1 shared	gyp  (spells 1)	gypp  (spells 2)	e.g. gyp
+	1 shared	gypo  (spells 1)	gyppo  (spells 2)	e.g. gypo
+	1 shared	hard core  (spells 1)	hardcore  (spells 1)	e.g. hardcore
+	1 shared	(cam)? w?hoa?re? (house)?  (spells 32)	hoar  (spells 1)	e.g. hoar
+	1 shared	(cam)? w?hoa?re? (house)?  (spells 32)	hoare  (spells 1)	e.g. hoare
+	1 shared	jiga  (spells 1)	jigga  (spells 2)	e.g. jiga
+	1 shared	jigaboo  (spells 2)	jiggabo  (spells 2)	e.g. jigabo
+	1 shared	juggs  (spells 2)	jugs  (spells 1)	e.g. jugs
+	1 shared	kaffir  (spells 2)	kafir  (spells 1)	e.g. kafir
+	1 shared	lez  (spells 1)	lezz  (spells 2)	e.g. lez
+	1 shared	looser  (spells 2)	loser  (spells 1)	e.g. loser
+	1 shared	nigg  (spells 2)	nigr?  (spells 2)	e.g. nig
+	1 shared	nob jokey  (spells 1)	nobjokey  (spells 1)	e.g. nobjokey
+	1 shared	phone sex  (spells 1)	phonesex  (spells 1)	e.g. phonesex
+	1 shared	slut  (spells 1)	slutt  (spells 2)	e.g. slut
+	1 shared	strap on  (spells 1)	strapon  (spells 1)	e.g. strapon
+	1 shared	strip club  (spells 1)	stripclub  (spells 1)	e.g. stripclub
+	1 shared	swallow  (spells 2)	swalow  (spells 1)	e.g. swalow
+	1 shared	tit  (spells 1)	titt  (spells 2)	e.g. tit
+	1 shared	transexual  (spells 1)	transsexual  (spells 2)	e.g. transexual
+	1 shared	tub girl  (spells 1)	tubgirl  (spells 1)	e.g. tubgirl
+
+## 4. Entries that other entries already match (39 entirely, 26 partly)
+	Each spelling of an entry is tried against every other entry's regex (stretched letters and optional separators included). An entry that is matched entirely adds nothing.
+	2/2	jigaboo	matched by jiggaboo (2); jiggabo (1)
+	2/2	jiggabo	matched by jiggaboo (2); jigaboo (1)
+	2/2	muff diver	matched by muffdiver (2)	BOTH WAYS with muffdiver
+	2/2	muffdiver	matched by muff diver (2)	BOTH WAYS with muff diver
+	2/2	nigga	matched by nigg(aa|ee|ii|oo|uu)r?(h|rd)?s? (2)
+	2/2	picaninny	matched by piccaninny (2)
+	2/2	piss pig	matched by pisspig (2)	BOTH WAYS with pisspig
+	2/2	pisspig	matched by piss pig (2)	BOTH WAYS with piss pig
+	2/2	shhit	matched by sshhiitt (2)
+	1/1	feces	matched by fa?eces (1)
+	1/1	felatio	matched by fellatio (1)
+	1/1	gay sex	matched by gaysex (1)	BOTH WAYS with gaysex
+	1/1	gaysex	matched by gay sex (1)	BOTH WAYS with gay sex
+	1/1	gyp	matched by gypp (1)
+	1/1	gypo	matched by gyppo (1)
+	1/1	hard core	matched by hardcore (1)	BOTH WAYS with hardcore
+	1/1	hardcore	matched by hard core (1)	BOTH WAYS with hard core
+	1/1	hoar	matched by (cam)? w?hoa?re? (house)? (1)
+	1/1	hoare	matched by (cam)? w?hoa?re? (house)? (1)
+	1/1	jiga	matched by jigga (1)
+	1/1	jugs	matched by juggs (1)
+	1/1	kafir	matched by kaffir (1)
+	1/1	lez	matched by lezz (1)
+	1/1	loser	matched by looser (1)
+	1/1	male squirting	matched by (fe)?male squirt(ed|er|ing|s) (1)
+	1/1	nob jokey	matched by nobjokey (1)	BOTH WAYS with nobjokey
+	1/1	nobjokey	matched by nob jokey (1)	BOTH WAYS with nob jokey
+	1/1	phone sex	matched by phonesex (1)	BOTH WAYS with phonesex
+	1/1	phonesex	matched by phone sex (1)	BOTH WAYS with phone sex
+	1/1	slut	matched by slutt (1)
+	1/1	strap on	matched by strapon (1)	BOTH WAYS with strapon
+	1/1	strapon	matched by strap on (1)	BOTH WAYS with strap on
+	1/1	strip club	matched by stripclub (1)	BOTH WAYS with stripclub
+	1/1	stripclub	matched by strip club (1)	BOTH WAYS with strip club
+	1/1	swalow	matched by swallow (1)
+	1/1	tit	matched by titt (1)
+	1/1	transexual	matched by transsexual (1)
+	1/1	tub girl	matched by tubgirl (1)	BOTH WAYS with tubgirl
+	1/1	tubgirl	matched by tub girl (1)	BOTH WAYS with tub girl
+	3/4	jiggaboo	matched by jigaboo (2); jiggabo (2)
+	2/4	piccaninny	matched by picaninny (2)
+	1/2	fa?eces	matched by feces (1)
+	1/2	fellatio	matched by felatio (1)
+	1/2	gypp	matched by gyp (1)
+	1/2	gyppo	matched by gypo (1)
+	1/2	jigga	matched by jiga (1)
+	1/2	juggs	matched by jugs (1)
+	1/2	kaffir	matched by kafir (1)
+	1/2	lezz	matched by lez (1)
+	1/2	looser	matched by loser (1)
+	1/2	nigr?	matched by nigg (1)
+	1/2	nigg	matched by nigr? (1)
+	1/2	slutt	matched by slut (1)
+	1/2	swallow	matched by swalow (1)
+	1/2	titt	matched by tit (1)
+	1/2	transsexual	matched by transexual (1)
+	1/3	cam (girl|slut|whore)	matched by (cam)? w?hoa?re? (house)? (1)
+	1/6	whitey? (power|trash)?	matched by (on)? (black|blonde?|brown|bruunette|yellow|white|dp) (action)? (1)
+	2/16	sshhiitt	matched by shhit (2)
+	1/8	(fe)?male squirt(ed|er|ing|s)	matched by male squirting (1)
+	3/32	(cam)? w?hoa?re? (house)?	matched by cam (girl|slut|whore) (1); hoar (1); hoare (1)
+	20/240	(f|ph)c?u(g?kk|q) ((a|e|i|o|u)rs?|ed|s)	matched by (f|ph)c?u(g?kk|q) (a|able|bag|buddy|face|fest|freak|friend|head|her|in(a|g)?|nuts?|me?|monkey|off|pig|tard|wh?it|you)? (hard|s)? (20)
+	1/48	(on)? (black|blonde?|brown|bruunette|yellow|white|dp) (action)?	matched by whitey? (power|trash)? (1)
+	20/1600	(f|ph)c?u(g?kk|q) (a|able|bag|buddy|face|fest|freak|friend|head|her|in(a|g)?|nuts?|me?|monkey|off|pig|tard|wh?it|you)? (hard|s)?	matched by (f|ph)c?u(g?kk|q) ((a|e|i|o|u)rs?|ed|s) (20)
+	2/240	nigg(aa|ee|ii|oo|uu)r?(h|rd)?s?	matched by nigga (2)
+
+## Not read (0)

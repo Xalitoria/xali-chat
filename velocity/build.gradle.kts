@@ -3,6 +3,7 @@ import java.net.URI
 import java.security.MessageDigest
 
 plugins {
+    kotlin("plugin.serialization")
     alias(libs.plugins.shadow)
 }
 
@@ -13,6 +14,7 @@ dependencies {
     api(libs.kaml)
     api(kotlinx("serialization-json"))
     compileOnly(libs.velocity.api)
+    compileOnly(libs.premiumvanish.api)
 }
 
 val velocityVersion = "4.2.0"

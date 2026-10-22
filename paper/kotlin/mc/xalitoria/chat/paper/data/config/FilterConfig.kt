@@ -3,41 +3,42 @@ package mc.xalitoria.chat.paper.data.config
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlin.collections.listOf
 import kotlin.text.RegexOption.IGNORE_CASE
 import kotlin.text.ifEmpty
 import kotlin.text.trim
 
 @Serializable
 data class FilterConfig(
-    val enabled: Boolean = true,
+    val enabled: Boolean = false,
     @SerialName("whitelist")
-    private val _whitelist: MutableList<String> = mutableListOf(),
+    private val _whitelist: MutableList<Phrase> = mutableListOf(),
     @SerialName("censored")
-    private val _censored: MutableList<Phrase> = [
+    private val _censored: MutableList<Phrase> =             [
         Phrase("alabaman? hot pocket"),
         Phrase("alaskan? pipe line"),
         Phrase("argie"),
         Phrase(
             ["anus", "arrsse", "ass", "buty", "butt"],
-            next = [
+            [
                 Phrase(
                     ["bang", "call", "cheek", "face?", "head", "hole", "munch", "plugg", "staainn"],
                     Phrase(
-                        ["er", "ed", "ing"],
-                        required = false
+                        match = ["er", "ed", "ing"],
+                        require = false
                     ),
-                    required = false
+                    require = false
                 ),
                 Phrase(
-                    ["man", "naked", "pirate"],
-                    required = false
+                    match = ["man", "naked", "pirate"],
+                    require = false
                 )
             ]
         ),
-        Phrase("bare nake(d|y)"),
+        Phrase(["bare nake(d|y)"]),
     ],
     @SerialName("blacklist")
-    private val _blacklist: MutableList<String> = mutableListOf(),
+    private val _blacklist: MutableList<Phrase> = mutableListOf(),
 ) {
 
     @Serializable
@@ -46,16 +47,10 @@ data class FilterConfig(
         val next: List<Phrase>? = null,
         val require: Boolean = true
     ) {
-        constructor(match: String, next: List<Phrase>? = null, require: Boolean = true) : this([match], next, require)
-        constructor(match: List<String>? = null, next: Phrase, require: Boolean = true) : this(match, [next], require)
+        constructor(match: String, next: List<Phrase>? = null, require: Boolean = true): this(listOf(match), next, require)
+        constructor(match: List<String>? = null, next: Phrase, require: Boolean = true): this(match, listOf(next), require)
 
-        constructor(match: List<String>, require: Boolean = true) : this(match, null, require)
-        constructor(next: List<Phrase>, require: Boolean = true) : this(null, next, require)
-
-        constructor(match: String, require: Boolean = true) : this([match], null, require)
-        constructor(next: Phrase, require: Boolean = true) : this(null, next, require)
-
-        internal fun build(): Map<String, Regex> {
+        fun build(): Map<String, Regex> {
             val result = mutableMapOf<String, Regex>()
             val nonCaptured = match?.mapNotNull { match ->
                 match.trim()
@@ -76,8 +71,7 @@ data class FilterConfig(
                             .replace(" ", "[\\s-+=_]*?")
                             .forEach { append(charReplace[it] ?: it) }
                     }
-                    runCatching { Regex(processed, IGNORE_CASE) }.getOrNull()
-                        ?.let { result.put(match, processed) }
+                    runCatching { Regex(processed, IGNORE_CASE) }.getOrNull()?.let { result[match] = it }
                 }
             }
             return result
@@ -90,23 +84,21 @@ data class FilterConfig(
 
     fun compile() {
         whitelist.clear()
-        whitelist.putAll(_whitelist.build().toSortedMap())
-        _whitelist.addAll(whitelist.keys)
-
-        //censored.clear()
-        //censored.putAll(_censored.build().toSortedMap())
-        //_censored.addAll(censored.keys)
+        _whitelist.clear()
+        _whitelist.forEach { whitelist.putAll(it.build().toSortedMap()) }
 
         censored.clear()
         _censored.clear()
-        censored.putAll(_censored.build().toSortedMap())
+        _censored.forEach { censored.putAll(it.build().toSortedMap()) }
 
         blacklist.clear()
-        blacklist.putAll(_blacklist.build().toSortedMap())
-        _blacklist.addAll(blacklist.keys)
+        _blacklist.clear()
+        _blacklist.forEach { blacklist.putAll(it.build().toSortedMap()) }
     }
 
     companion object {
+        private val regexLiteral = Regex("""^\\.+?\\$""")
+        private val regexGroupNonCapt = Regex("\\([a-z]", IGNORE_CASE)
         private val charReplace = mapOf<Char, String>(
             'a' to "[aq4@]",
             'c' to "[ck]",
@@ -130,27 +122,28 @@ data class FilterConfig(
             'z' to "[zs2]",
         )
 
-        private fun MutableCollection<String>.build() = buildMap<String, Regex> {
+        /*
+        private fun MutableCollection<Phrase>.build() = buildMap<String, Regex> {
             this@build.mapNotNull { match ->
                 match.trim().ifEmpty { null }
                     ?.lowercase()
-                    ?.replace(Regex("\\([a-z]", IGNORE_CASE)) { "(?:" + it.value.last() }
+                    ?.replace(regexGroupNonCapt) { "(?:" + it.value.last() }
             }.forEach { match ->
-                if (match.matches(Regex("\\\\.+?\\\\"))) put(match, Regex(match.removeSurrounding("\\"), IGNORE_CASE))
-                else {
-                    // regex literals
-                    if (match.matches(Regex("\\\\.+?\\\\"))) Regex(match, IGNORE_CASE)
-                    else buildString {
+                val put = if (match.matches(regexLiteral)) {
+                    match.removeSurrounding("\\")
+                } else {
+                    buildString {
                         match
                             // double letters
                             .replace(Regex("([a-z])\\1")) { it.value.first() + "+" }
                             // spaces
                             .replace(" ", "[\\s-+=|_]*?")
                             .forEach { append(charReplace[it] ?: it) }
-                    }.let { put(match, Regex(it, IGNORE_CASE)) }
+                    }
                 }
+                put(match, Regex(put, IGNORE_CASE))
             }
         }
-
+        */
     }
 }

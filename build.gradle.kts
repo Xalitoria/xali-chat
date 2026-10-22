@@ -1,17 +1,19 @@
 import mc.xalitoria.gradle.Load
+import mc.xalitoria.gradle.RelativeLoad
 
 plugins {
     id("mc.xalitoria.minecraft")
 }
 
-// :chat is only a parent: the Paper plugin, the Velocity plugin and the protocol they share are its subprojects,
-// and they are released together under one version.
 subprojects {
     group = "mc.xalitoria"
     version = "0.5.0"
 }
 
-// The plugins are described here, once, and the :paper and :velocity subprojects pick their block up.
+tasks.named("build") {
+    dependsOn(subprojects.map { "${it.path}:build" })
+}
+
 paper {
     name = "XaliChat"
     main = "mc.xalitoria.chat.paper.XaliChat"
@@ -23,6 +25,10 @@ paper {
     foliaSupported = true
     relocateSources = true
     serverDependencies {
+        register("Essentials") {
+            load = RelativeLoad.AFTER
+            required = false
+        }
         register("SignedVelocity")
         register("PlaceholderAPI")
         register("ProtocolLib")
@@ -37,9 +43,12 @@ paper {
 velocity {
     name = "XaliChat"
     id = "xalichat"
-    main = "mc.xalitoria.chat.velocity.XaliChatVelocity"
+    main = "mc.xalitoria.chat.velocity.XaliChat"
     author = "audizian"
     url = "https://xalitoria.com"
     description = "Relays XaliChat's announcements, global broadcasts and global announcements between servers."
     relocateSources = true
+    dependencies {
+        register("premiumvanish") { required = false }
+    }
 }

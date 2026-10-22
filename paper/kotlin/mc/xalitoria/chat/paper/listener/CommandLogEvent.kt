@@ -20,7 +20,7 @@ class CommandLogEvent(private val plugin: XaliChat) : Listener {
         val label = words[0].substringAfter(':').let {
             if (it.lowercase() in CommandAliases.XALICHAT) words.getOrElse(1) { "" } else it
         }
-        if (label.lowercase() in CommandAliases.MESSAGE || plugin.config.data.logging.commands.isIgnored(label)) {
+        if (label.lowercase() in CommandAliases.PRIVATE || plugin.config.data.logging.commands.isIgnored(label)) {
             debug("Command /{0} by {1} not logged: ignored label", label, event.player.name)
             return
         }

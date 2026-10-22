@@ -46,6 +46,51 @@ sealed interface Message {
         override fun encode() = write("ANNOUNCE") { writeUTF(key); writeUTF(uuid.toString()); writeUTF(name.orEmpty()) }
     }
 
+    /**
+     * `WHISPER`: a private message from [from] to [to], for the proxy to find on whichever server [to] is on. [id]
+     * ties the [WhisperAck] back to the command that sent it; [bypassIgnore] is the sender's permission to reach
+     * players who ignore them, since only the receiving server knows who ignores whom, and [seesVanished] that they
+     * may see vanished players, who are otherwise not found.
+     */
+    class Whisper(
+        val id: UUID,
+        val from: String,
+        val fromUuid: UUID?,
+        val bypassIgnore: Boolean,
+        val seesVanished: Boolean,
+        val to: String,
+        val text: String,
+    ) : Message {
+        override fun encode() = write("WHISPER") {
+            writeUTF(id.toString()); writeUTF(from); writeUTF(fromUuid?.toString().orEmpty())
+            writeBoolean(bypassIgnore); writeBoolean(seesVanished); writeUTF(to); write(text.toByteArray())
+        }
+    }
+
+    /** `WHISPER_ACK`: how the [Whisper] [id] ended, with the receiver's exact [name] when it was found. */
+    class WhisperAck(val id: UUID, val status: Status, val name: String?) : Message {
+        enum class Status { DELIVERED, NOT_FOUND, IGNORED }
+
+        override fun encode() = write("WHISPER_ACK") { writeUTF(id.toString()); writeByte(status.ordinal); writeUTF(name.orEmpty()) }
+    }
+
+    /**
+     * `PLAYERS`: everyone on the proxy, for a server's tab completion. [hidden] maps a vanished player to the
+     * players on the receiving server who can't see them, so it stays small however many players there are.
+     */
+    class Players(val names: List<String>, val hidden: Map<String, List<String>>) : Message {
+        override fun encode() = write("PLAYERS") {
+            writeInt(names.size)
+            names.forEach { writeUTF(it) }
+            writeInt(hidden.size)
+            hidden.forEach { (target = key, viewers = value) ->
+                writeUTF(target)
+                writeInt(viewers.size)
+                viewers.forEach { writeUTF(it) }
+            }
+        }
+    }
+
     companion object {
         /** Reads a message written by [encode]; null for a subchannel this version doesn't know. */
         fun decode(bytes: ByteArray): Message? = DataInputStream(ByteArrayInputStream(bytes)).run {
@@ -55,6 +100,17 @@ sealed interface Message {
                 "PULL" -> Pull(buildMap { repeat(readInt()) { put(readUTF(), readLong()) } })
                 "BROADCAST" -> Broadcast(readBoolean(), String(readAllBytes()))
                 "ANNOUNCE" -> Announce(readUTF(), UUID.fromString(readUTF()), readUTF().takeIf { it.isNotEmpty() })
+                "WHISPER" -> Whisper(
+                    UUID.fromString(readUTF()), readUTF(), readUTF().takeIf { it.isNotEmpty() }?.let(UUID::fromString),
+                    readBoolean(), readBoolean(), readUTF(), String(readAllBytes()),
+                )
+                "WHISPER_ACK" -> WhisperAck(
+                    UUID.fromString(readUTF()), WhisperAck.Status.entries[readByte().toInt()], readUTF().takeIf { it.isNotEmpty() },
+                )
+                "PLAYERS" -> Players(
+                    List(readInt()) { readUTF() },
+                    buildMap { repeat(readInt()) { put(readUTF(), List(readInt()) { readUTF() }) } },
+                )
                 else -> null
             }
         }

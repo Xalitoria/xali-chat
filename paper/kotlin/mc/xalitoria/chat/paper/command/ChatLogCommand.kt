@@ -57,11 +57,21 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
             .executes { ctx -> ctx.source.sender fail msg.exportUsage("chatlog"); Command.SINGLE_SUCCESS }
             .then(Commands
                 .argument("filename", StringArgumentType.word())
-                .executes { ctx -> export(plugin, ctx.source.sender, StringArgumentType.getString(ctx, "filename"), ""); Command.SINGLE_SUCCESS }
+                .executes { ctx -> export(
+                    plugin,
+                    ctx.source.sender,
+                    StringArgumentType.getString(ctx, "filename"),
+                    ""
+                ); Command.SINGLE_SUCCESS }
                 .then(Commands
                     .argument("flags", StringArgumentType.greedyString())
                     .executes { ctx ->
-                        export(plugin, ctx.source.sender, StringArgumentType.getString(ctx, "filename"), StringArgumentType.getString(ctx, "flags"))
+                        export(
+                            plugin,
+                            ctx.source.sender,
+                            StringArgumentType.getString(ctx, "filename"),
+                            StringArgumentType.getString(ctx, "flags")
+                        )
                         Command.SINGLE_SUCCESS
                     }
                 )

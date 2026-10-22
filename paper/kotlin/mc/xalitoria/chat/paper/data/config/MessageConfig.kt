@@ -44,6 +44,10 @@ data class MessageConfig(
         @Serializable
         data class Message(
             private val usage: String = "Usage: &d/{0} &r<target> [message]",
+            @SerialName("reply-usage")
+            private val replyUsage: String = "Usage: &d/{0} &r<message>",
+            @SerialName("no-reply")
+            val noReply: String = "You have no one to reply to.",
             val player: Recipient = Recipient(),
             val console: Recipient = Recipient(),
             val self: String = "You can't message yourself!",
@@ -67,6 +71,7 @@ data class MessageConfig(
                     resolve(target).formatArgs(senderName, targetName, message)
             }
             fun usage(label: String): String = usage.formatArgs(label)
+            fun replyUsage(label: String): String = replyUsage.formatArgs(label)
             fun targetInvalid(playerName: String): String = targetInvalid.formatArgs(playerName)
         }
 

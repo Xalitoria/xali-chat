@@ -41,6 +41,19 @@ class Protocol {
         val announce = assertIs<Message.Announce>(receive(Protocol.seal(secret, Message.Announce("rank", uuid, "Notch"))))
         assertEquals(Triple("rank", uuid, "Notch"), Triple(announce.key, announce.uuid, announce.name))
         assertNull(assertIs<Message.Announce>(receive(Protocol.seal(secret, Message.Announce("rank", uuid, null)))).name)
+
+        val whisper = assertIs<Message.Whisper>(receive(Protocol.seal(secret, Message.Whisper(uuid, "Notch", uuid, true, true, "jeb_", "hi é"))))
+        assertEquals(listOf(uuid, "Notch", uuid, true, true, "jeb_", "hi é"), listOf(whisper.id, whisper.from, whisper.fromUuid, whisper.bypassIgnore, whisper.seesVanished, whisper.to, whisper.text))
+        assertNull(assertIs<Message.Whisper>(receive(Protocol.seal(secret, Message.Whisper(uuid, "CONSOLE", null, false, false, "jeb_", "")))).fromUuid)
+
+        val ack = assertIs<Message.WhisperAck>(receive(Protocol.seal(secret, Message.WhisperAck(uuid, Message.WhisperAck.Status.IGNORED, "Jeb_"))))
+        assertEquals(Triple(uuid, Message.WhisperAck.Status.IGNORED, "Jeb_"), Triple(ack.id, ack.status, ack.name))
+        assertNull(assertIs<Message.WhisperAck>(receive(Protocol.seal(secret, Message.WhisperAck(uuid, Message.WhisperAck.Status.NOT_FOUND, null)))).name)
+
+        val players = assertIs<Message.Players>(receive(Protocol.seal(secret, Message.Players(["Notch", "jeb_", "Dinnerbone"], mapOf("jeb_" to listOf("Notch"), "Dinnerbone" to emptyList())))))
+        assertEquals(listOf("Notch", "jeb_", "Dinnerbone"), players.names)
+        assertEquals(mapOf("jeb_" to listOf("Notch"), "Dinnerbone" to emptyList()), players.hidden)
+        assertEquals(emptyList(), assertIs<Message.Players>(receive(Protocol.seal(secret, Message.Players([], emptyMap())))).names)
     }
 
     @Test

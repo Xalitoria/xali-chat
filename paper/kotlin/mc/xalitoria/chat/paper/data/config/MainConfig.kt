@@ -23,6 +23,12 @@ data class MainConfig(
         "Disable if a ProtocolLib conflict or bug needs ruling out without removing the plugin.",
     )
     val protocolor: Boolean = true,
+    @YamlComment(
+        "Lets /msg and /reply reach players on other servers behind the proxy, and this server receive theirs.",
+        "false keeps private messages to this server. The proxy's config.yml can switch it off for servers too.",
+    )
+    @SerialName("cross-server-messages")
+    val crossServerMessages: Boolean = true,
     val database: Database = Database(),
     val nickname: Nickname = Nickname(),
     @YamlComment(

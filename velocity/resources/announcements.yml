@@ -1,0 +1,28 @@
+# The master announcements.yml. Servers send their saved changes here and receive the keys that name them, so edit it
+# here or on any server. Every announcement below is switched off (enable: false); turn one on to use it.
+#
+#   enable:   false switches it off everywhere, commands included.
+#   delay:    seconds before the first automatic run. With delay and repeat both 0 it only runs from /xannounce.
+#   repeat:   seconds between automatic runs; 0 runs it once.
+#   servers:  server names from velocity.toml, with * and ? wildcards (skyblock-*). Empty means every server.
+#   messages: chat lines. &-codes, &#RRGGBB and MiniMessage work; {name}, {uuid} and %player_name% resolve for the player
+#             it is run for.
+#   commands: console commands run in order after the messages; "delay 2s 10t" pauses the list.
+"discord":
+  enable: false
+  delay: 300
+  repeat: 1800
+  messages:
+  - "========================================"
+  - ""
+  - "Join the Discord: https://discord.gg/example"
+  - ""
+  - "========================================"
+"rank-example":
+  enable: false
+  servers:
+  - "survival-*"
+  messages:
+  - "%player_name% purchased a rank!"
+  commands:
+  - "playsound minecraft:entity.player.levelup master @a"

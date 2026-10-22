@@ -32,8 +32,11 @@ data class Announcement(
     val commands: List<String> = [],
 ) {
     /** Whether [server] is named by [servers]: any entry matches, `*` stands for any text and `?` for one character. */
-    fun appliesTo(server: String): Boolean = servers.isEmpty() || servers.any { pattern ->
-        Regex(pattern.map { if (it == '*') ".*" else if (it == '?') "." else Regex.escape(it.toString()) }.joinToString(""), RegexOption.IGNORE_CASE)
-            .matches(server)
-    }
+    fun appliesTo(server: String): Boolean = serverMatches(servers, server)
+}
+
+/** Whether [server] is named by [patterns]: any matches, `*` standing for any text and `?` for one character; none names every server. */
+fun serverMatches(patterns: List<String>, server: String): Boolean = patterns.isEmpty() || patterns.any { pattern ->
+    Regex(pattern.map { if (it == '*') ".*" else if (it == '?') "." else Regex.escape(it.toString()) }.joinToString(""), RegexOption.IGNORE_CASE)
+        .matches(server)
 }

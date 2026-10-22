@@ -5,14 +5,22 @@ import com.charleskorn.kaml.YamlConfiguration
 import kotlinx.serialization.Serializable
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.chat.paper.data.db.IgnoreCache
+import mc.xalitoria.chat.paper.external.VanishAPI
+import mc.xalitoria.chat.paper.util.ProxyPlayers
+import mc.xalitoria.chat.paper.util.ReplyTracker
+import mc.xalitoria.chat.paper.util.SpyNotifier
+import mc.xalitoria.chat.paper.util.resolvePlaceholders
+import mc.xalitoria.util.message.send
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.protocol.Protocol
 import mc.xalitoria.chat.protocol.Reassembler
 import mc.xalitoria.util.message.GCOMP
 import org.bukkit.Bukkit
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.plugin.messaging.PluginMessageListener
-import java.io.*
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.readText
@@ -21,7 +29,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.milliseconds
 
 class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
-    private val pending = ConcurrentHashMap<UUID, CompletableDeferred<LookupResult>>()
+    private val pending = ConcurrentHashMap<UUID, CompletableDeferred<Message.WhisperAck>>()
 
     /**
      * Velocity's forwarding secret from Paper's own `config/paper-global.yml` (`proxies.velocity`), which the proxy
@@ -64,18 +72,6 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
     private fun handle(message: ByteArray) {
         val frame = reassembler.accept(message) ?: return
         when (val subchannel = Protocol.subchannel(frame)) {
-            "LOOKUP_RES" -> DataInputStream(ByteArrayInputStream(frame)).use { input ->
-                input.readUTF()
-                val requestId = UUID.fromString(input.readUTF())
-                val found = input.readBoolean()
-                val exactName = input.readUTF().takeIf { it.isNotEmpty() }
-                val serverName = input.readUTF().takeIf { it.isNotEmpty() }
-
-                debug("Proxy lookup {0} answered: found={1}, name={2}, server={3}", requestId, found, exactName, serverName)
-                pending.remove(requestId)?.complete(
-                    LookupResult(found, exactName, serverName)
-                )
-            }
             Protocol.SIGNED -> when (val opened = Protocol.open(secret, frame)) {
                 is Message.Update -> plugin.announcements.receive(opened.entries)
                 is Message.Broadcast -> {
@@ -83,6 +79,12 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
                     plugin.announcements.send(opened.bypassMute) { listOf(component) }
                 }
                 is Message.Announce -> plugin.announcements.announce(opened.key, opened.uuid, opened.name, respectServers = true)
+                is Message.Players -> {
+                    ProxyPlayers.update(opened)
+                    debug("Proxy player list: {0} names, {1} hidden from someone here", opened.names.size, opened.hidden.size)
+                }
+                is Message.Whisper -> receiveWhisper(opened)
+                is Message.WhisperAck -> pending.remove(opened.id)?.complete(opened)
                 is Message.Push, is Message.Pull -> debug("Ignored {0}: only the proxy takes it", opened::class.simpleName)
                 null -> debug("Ignored a proxy message with a missing or wrong signature")
             }
@@ -93,54 +95,51 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
     private fun carrier(): Player? =
         Bukkit.getOnlinePlayers().firstOrNull()
 
-    suspend fun lookupPlayerOnProxy(name: String, timeoutMs: Long = 5000): LookupResult? {
-        val carrier = carrier() ?: run {
-            debug("Proxy lookup for {0} skipped: no player to carry the message", name)
+    /**
+     * Sends a private message to a player on another server, through the proxy, and waits for how it went: delivered
+     * (with the receiver's exact name), no such player online, or ignored by the receiver. Null when the proxy never
+     * answered, or there was no secret or player to send it with.
+     */
+    suspend fun whisper(sender: CommandSender, to: String, text: String, timeoutMs: Long = 5000): Message.WhisperAck? {
+        if (!plugin.config.data.crossServerMessages) return null
+        val player = sender as? Player
+        val whisper = Message.Whisper(
+            UUID.randomUUID(), sender.name, player?.uniqueId,
+            sender.hasPermission(Permissions.BYP_MSG_IGNORE), VanishAPI.seesVanished(sender), to, text,
+        )
+        val deferred = CompletableDeferred<Message.WhisperAck>()
+        pending[whisper.id] = deferred
+        if (!send(whisper)) {
+            pending.remove(whisper.id)
             return null
         }
-        val requestId = UUID.randomUUID()
-
-        val deferred = CompletableDeferred<LookupResult>()
-        pending[requestId] = deferred
-
-        val payload = ByteArrayOutputStream().use { baos ->
-            DataOutputStream(baos).use { out ->
-                out.writeUTF("LOOKUP_REQ")
-                out.writeUTF(requestId.toString())
-                out.writeUTF(name)
-            }
-            baos.toByteArray()
+        val ack = withTimeoutOrNull(timeoutMs.milliseconds) { deferred.await() }
+        if (ack == null) {
+            debug("Whisper {0} to {1} timed out after {2}ms", whisper.id, to, timeoutMs)
+            pending.remove(whisper.id)
         }
-
-        carrier.sendPluginMessage(plugin, CHANNEL, payload)
-
-        val res = withTimeoutOrNull(timeoutMs.milliseconds) { deferred.await() }
-        if (res == null) {
-            debug("Proxy lookup {0} for {1} timed out after {2}ms", requestId, name, timeoutMs)
-            pending.remove(requestId)
-        }
-        return res
+        return ack
     }
 
-    fun sendMsgOnProxy(senderName: String, receiverName: String, msg: String): Boolean {
-        val carrier = carrier() ?: run {
-            debug("Proxy message from {0} to {1} not sent: no player to carry it", senderName, receiverName)
-            return false
-        }
-        debug("Sending proxy message from {0} to {1}", senderName, receiverName)
-
-        val payload = ByteArrayOutputStream().use { baos ->
-            DataOutputStream(baos).use { out ->
-                out.writeUTF("MSG_SEND")
-                out.writeUTF(senderName)
-                out.writeUTF(receiverName)
-                out.writeUTF(msg)
+    /** A private message the proxy found one of this server's players for; says how it went, to be passed back. */
+    private fun receiveWhisper(whisper: Message.Whisper) {
+        val target = plugin.server.getPlayerExact(whisper.to)
+        val ack = when {
+            !plugin.config.data.crossServerMessages ||
+                target == null || (!whisper.seesVanished && VanishAPI.isVanished(target)) -> Message.WhisperAck(whisper.id, Message.WhisperAck.Status.NOT_FOUND, null)
+            !whisper.bypassIgnore && whisper.fromUuid?.let { IgnoreCache.isIgnoring(target.uniqueId, it) } == true ->
+                Message.WhisperAck(whisper.id, Message.WhisperAck.Status.IGNORED, target.name)
+            else -> {
+                target send plugin.messageConfig.data.commands.message.player.target(whisper.from, target.name, whisper.text) {
+                    it.resolvePlaceholders(null, target)
+                }
+                ReplyTracker.remember(target, whisper.from)
+                SpyNotifier.notify(plugin, whisper.from, target.name, whisper.text) { it.uniqueId == target.uniqueId }
+                Message.WhisperAck(whisper.id, Message.WhisperAck.Status.DELIVERED, target.name)
             }
-            baos.toByteArray()
         }
-
-        carrier.sendPluginMessage(plugin, CHANNEL, payload)
-        return true
+        debug("Whisper {0} from {1} to {2}: {3}", whisper.id, whisper.from, whisper.to, ack.status)
+        send(ack)
     }
 
     /**

@@ -84,6 +84,25 @@ class AnnouncementStore {
     }
 
     @Test
+    fun brokenFileLeavesTheLastWorkingOneAsABackup() {
+        val store = store()
+        val backup = directory.resolve("announcements.yml.bak")
+        save(titan, 1_000)
+        store.scan()
+        assertFalse(backup.toFile().exists(), "nothing to keep while the file is fine")
+
+        save("rank-titan: [unclosed\n", 2_000)
+        assertFailsWith<Exception> { store.scan() }
+        assertEquals(titan, backup.toFile().readText())
+
+        save(titan.replace("yay", "pling"), 3_000)
+        store.scan()
+        save("still: [broken\n", 4_000)
+        assertFailsWith<Exception> { store.scan() }
+        assertTrue("pling" in backup.toFile().readText(), "the newer working version is the one kept")
+    }
+
+    @Test
     fun stateSurvivesARestart() {
         save(titan, 1_000)
         store().scan()

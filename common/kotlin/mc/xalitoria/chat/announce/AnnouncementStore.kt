@@ -22,6 +22,9 @@ import kotlin.io.path.writeText
  * by comments or layout), and the newest save wins.
  *
  * A deleted key stays in the state as a removal with its own time, so an older copy can't bring it back.
+ *
+ * Only a file that parses is ever taken, and so synced. When a save doesn't, nothing changes, and the last text that
+ * did parse, held in memory, is written beside it as `<file>.bak` so the working version isn't lost with the edit.
  */
 class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     /** [hash] is the content as of [modified]; null marks a removal. */
@@ -37,6 +40,9 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     private val stateSerializer = MapSerializer(String.serializer(), Stamp.serializer())
     private val stamps = HashMap<String, Stamp>()
 
+    /** The file's text as of the last time it parsed or was written here; what [backup] keeps. */
+    private var lastGood: String? = null
+
     /** What is loaded now. A new map for every change, so it is safe to read from any thread. */
     @Volatile
     var announcements: Map<String, Announcement> = emptyMap()
@@ -48,12 +54,19 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
 
     /**
      * Reads the file again and returns what changed since the last time it was known: new or edited keys, and keys
-     * that are gone, each stamped with when the file was saved. Throws, changing nothing, if the file doesn't parse.
+     * that are gone, each stamped with when the file was saved. Throws, changing nothing, if the file doesn't parse
+     * (after writing the last working text to `<file>.bak`).
      */
     @Synchronized
     fun scan(): List<Entry> {
         val text = if (file.exists()) file.readText() else ""
-        val loaded = if (text.isBlank()) emptyMap() else yaml.decodeFromString(fileSerializer, text)
+        val loaded = try {
+            if (text.isBlank()) emptyMap() else yaml.decodeFromString(fileSerializer, text)
+        } catch (e: Exception) {
+            backup()
+            throw e
+        }
+        lastGood = text
         val saved = if (file.exists()) file.getLastModifiedTime().toMillis() else System.currentTimeMillis()
 
         val changes = ArrayList<Entry>()
@@ -103,8 +116,14 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     @Synchronized
     fun write() {
         file.parent?.createDirectories()
-        file.writeText(yaml.encodeToString(fileSerializer, announcements))
+        yaml.encodeToString(fileSerializer, announcements).also { lastGood = it; file.writeText(it) }
         saveState()
+    }
+
+    /** Keeps the last working text as `<file>.bak`, from what is loaded if the file never parsed. */
+    private fun backup() {
+        val good = lastGood?.takeIf { it.isNotBlank() } ?: announcements.takeIf { it.isNotEmpty() }?.let { yaml.encodeToString(fileSerializer, it) } ?: return
+        file.resolveSibling(file.fileName.toString() + ".bak").writeText(good)
     }
 
     /** The keys held and when each was saved, for asking the proxy what is newer. */

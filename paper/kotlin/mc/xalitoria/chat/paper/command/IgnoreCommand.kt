@@ -23,7 +23,7 @@ import java.util.UUID
 
 /**
  * Self-toggle: the executing player ignores/un-ignores the target. Not an admin action — that's
- * `MuteCommand`'s domain.
+ * `SilenceCommand`'s domain.
  */
 object IgnoreCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Ignore players command"

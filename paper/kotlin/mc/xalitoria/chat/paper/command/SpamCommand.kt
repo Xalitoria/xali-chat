@@ -23,7 +23,7 @@ import mc.xalitoria.chat.paper.data.constants.Permissions
 object SpamCommand: XCommand(XaliChat.INSTANCE) {
     override val description: String = "Repeating chat command"
     override val mainCommand = "xspam"
-    override val aliases: List<String> = ["spam", "alispam"]
+    override val aliases: List<String> = ["spam"]
     private val spammer: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
     private val activeTasks = ConcurrentHashMap<UUID, BukkitTask>()
 
