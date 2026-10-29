@@ -1,5 +1,7 @@
+import kotlinx.serialization.json.Json
 import mc.xalitoria.chat.announce.Announcement
 import mc.xalitoria.chat.announce.AnnouncementStore
+import mc.xalitoria.chat.announce.AnnouncementSync
 import mc.xalitoria.chat.protocol.Entry
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
@@ -119,9 +121,9 @@ class AnnouncementStore {
 
         assertFalse(store.apply(Entry("rank-titan", 1_000, entry.json)), "same time")
         assertFalse(store.apply(Entry("rank-titan", 500, entry.json!!.replace("yay", "old"))), "older")
-        assertTrue(store.apply(Entry("rank-titan", 2_000, entry.json!!.replace("yay", "new"))))
+        assertTrue(store.apply(Entry("rank-titan", 2_000, entry.json.replace("yay", "new"))))
         assertEquals(listOf("playsound @a new"), store.announcements.getValue("rank-titan").commands)
-        assertEquals(2_000L, store.known().getValue("rank-titan"))
+        assertEquals(2_000L, store.entry("rank-titan")!!.modified)
         assertFalse(store.apply(Entry("rank-titan", 3_000, "not json")), "an entry that doesn't parse is dropped")
 
         // A removal also wins a tie, and an older copy can't bring the key back.
@@ -150,15 +152,20 @@ class AnnouncementStore {
     @Test
     fun writtenEntriesAreNotReportedAgain() {
         val store = store()
-        val json = Announcement(messages = ["hi"]).let { kotlinx.serialization.json.Json { encodeDefaults = true }.encodeToString(Announcement.serializer(), it) }
+        val json = Announcement(messages = ["hi"]).let { json.encodeToString(Announcement.serializer(), it) }
         assertTrue(store.apply(Entry("hello", 9_000, json)))
         store.write()
         assertTrue(store.scan().isEmpty(), "the file now says what the state says")
-        assertEquals(9_000L, store.known().getValue("hello"))
+        assertEquals(9_000L, store.entry("hello")!!.modified)
     }
 
+    /** A store of a server of its own: its file and state live in a folder beside the master's. */
+    private fun holder() = createTempDirectory("holder").let { AnnouncementStore(it.resolve("announcements.yml"), it.resolve("state.json")) }
+
+    private fun AnnouncementStore.take(entries: List<Entry>) = entries.forEach { apply(it) }
+
     @Test
-    fun serverGetsItsKeysNewerCopiesAndRemovals() {
+    fun serverTakesItsKeysAndDropsTheOnesThatStopNamingIt() {
         val master = store()
         save(
             """
@@ -174,24 +181,88 @@ class AnnouncementStore {
             1_000,
         )
         master.scan()
+        val shared = master.allEntries()
 
-        // A server that knows nothing gets the keys that name it, and only those.
-        assertEquals(setOf("everywhere", "skyblock-only"), master.forServer("skyblock-2", emptyMap()).map { it.key }.toSet())
-        assertEquals(setOf("everywhere", "survival-only"), master.forServer("survival-1", emptyMap()).map { it.key }.toSet())
+        // The proxy (no server) takes everything; a server only the keys that name it.
+        assertEquals(setOf("everywhere", "skyblock-only", "survival-only"), holder().relevant(null, shared).map { it.key }.toSet())
+        val skyblock = holder()
+        assertEquals(setOf("everywhere", "skyblock-only"), skyblock.relevant("skyblock-2", shared).map { it.key }.toSet())
+        skyblock.take(skyblock.relevant("skyblock-2", shared))
+        assertEquals(setOf("everywhere", "skyblock-only"), skyblock.announcements.keys)
 
-        // Up to date: nothing. Older copy: the newer one. A key that no longer names it, or is gone: a removal.
-        assertTrue(master.forServer("skyblock-2", mapOf("everywhere" to 1_000L, "skyblock-only" to 1_000L)).isEmpty())
-        assertEquals(listOf("skyblock-only"), master.forServer("skyblock-2", mapOf("everywhere" to 1_000L, "skyblock-only" to 10L)).map { it.key })
-        val removals = master.forServer("skyblock-2", mapOf("everywhere" to 1_000L, "skyblock-only" to 1_000L, "survival-only" to 1_000L))
-        assertEquals(listOf("survival-only"), removals.map { it.key })
-        assertNull(removals.single().json)
+        // Taking the same set again changes nothing.
+        assertEquals(0, skyblock.relevant("skyblock-2", shared).count { skyblock.apply(it) })
 
-        // Deleted at the master: the tombstone tells servers still holding it to drop it.
-        save("", 2_000)
+        // A key that stops naming the server is a removal there; one the server never held is nothing.
+        save(
+            """
+            "everywhere":
+              messages: ["a"]
+            "skyblock-only":
+              servers: ["survival-1"]
+              messages: ["b"]
+            "survival-only":
+              servers: ["survival-1"]
+              messages: ["c"]
+            """.trimIndent(),
+            2_000,
+        )
         master.scan()
-        val gone = master.forServer("skyblock-2", mapOf("everywhere" to 1_000L))
-        assertEquals(listOf("everywhere"), gone.map { it.key })
-        assertEquals(2_000L, gone.single().modified)
-        assertNull(gone.single().json)
+        val moved = skyblock.relevant("skyblock-2", master.allEntries())
+        assertEquals(listOf("skyblock-only"), moved.filter { it.json == null && it.modified == 2_000L }.map { it.key })
+        skyblock.take(moved)
+        assertEquals(setOf("everywhere"), skyblock.announcements.keys)
+        assertEquals(setOf("everywhere"), holder().also { it.take(it.relevant("skyblock-2", master.allEntries())) }.announcements.keys)
+
+        // Deleted at the master: the removal tells a server still holding it to drop it.
+        save("", 3_000)
+        master.scan()
+        skyblock.take(skyblock.relevant("skyblock-2", master.allEntries()))
+        assertTrue(skyblock.announcements.isEmpty())
+    }
+
+    @Test
+    fun olderSharedCopyDoesNotReplaceANewerLocalOne() {
+        val server = holder()
+        server.take(listOf(Entry("a", 5_000, json.encodeToString(Announcement.serializer(), Announcement(messages = ["new"])))))
+        val old = Entry("a", 1_000, json.encodeToString(Announcement.serializer(), Announcement(messages = ["old"])))
+        assertEquals(0, server.relevant("x", listOf(old)).count { server.apply(it) })
+        assertEquals(listOf("new"), server.announcements.getValue("a").messages)
+    }
+
+    @Test
+    fun sharedValuesRoundTrip() {
+        val kept = AnnouncementSync.decode("a", AnnouncementSync.encode(Entry("a", 42, """{"messages":["x|y"]}""")))!!
+        assertEquals(42L, kept.modified)
+        assertEquals("""{"messages":["x|y"]}""", kept.json)
+        val removed = AnnouncementSync.decode("a", AnnouncementSync.encode(Entry("a", 43, null)))!!
+        assertEquals(43L, removed.modified)
+        assertNull(removed.json)
+        assertNull(AnnouncementSync.decode("a", "garbage"))
+    }
+
+    @Test
+    fun emptyStoreWritesAFileThatScansAsNothing() {
+        val store = store()
+        assertFalse(store.exists())
+        assertFalse(store.hasHistory())
+        store.write()
+        assertTrue(store.exists())
+        assertTrue(store().scan().isEmpty(), "the header-only file holds no announcements")
+        assertTrue(store().announcements.isEmpty())
+    }
+
+    @Test
+    fun anAnswerToAFirstSyncCreatesTheFile() {
+        val store = store()
+        assertTrue(store.apply(Entry("a", 5_000, json.encodeToString(Announcement.serializer(), Announcement(messages = ["hi"])))))
+        store.write()
+        val again = store()
+        assertEquals(emptyList(), again.scan().map { it.key }, "what was written is what the state already holds")
+        assertEquals(listOf("hi"), again.announcements.getValue("a").messages)
+    }
+
+    companion object {
+        val json = Json { encodeDefaults = true }
     }
 }

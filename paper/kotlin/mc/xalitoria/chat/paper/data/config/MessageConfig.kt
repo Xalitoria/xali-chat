@@ -56,9 +56,12 @@ data class MessageConfig(
             @SerialName("target-offline")
             private val targetOffline: String = "{0} is offline.",
             @SerialName("no-players")
-            val noPlayers: String = "No other players are online!"
+            val noPlayers: String = "No other players are online!",
+            @SerialName("declined")
+            private val declined: String = "{0} isn't accepting messages from you.",
         ) {
             fun targetOffline(playerName: String): String = targetOffline.formatArgs(playerName)
+            fun declined(playerName: String): String = declined.formatArgs(playerName)
             @Serializable
             data class Recipient(
                 private val sender: String = "&7To {1}: {2}",
@@ -164,6 +167,7 @@ data class MessageConfig(
             private val tooLong: String = "Nicknames can be at most {0} characters long.",
             val invalid: String = "A nickname can't be empty or contain spaces.",
             val taken: String = "That nickname is already taken.",
+            val disabled: String = "Nicknames are disabled.",
         ) {
             fun usage(label: String): String = usage.formatArgs(label)
             fun set(nickname: String): String = set.formatArgs(nickname)

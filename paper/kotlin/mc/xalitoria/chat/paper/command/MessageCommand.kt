@@ -93,6 +93,11 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                     sender fail cmdMsg.ignore.blockedByTarget
                     return
                 }
+                if (!sender.hasPermission(Permissions.BYP_MSG_IGNORE) && !PrivateMessageGates.allows((sender as? Player)?.uniqueId, target)) {
+                    debug("/xmessage {0} -> {1} declined by a message gate", sender.name, target.name)
+                    sender fail msg.declined(target.name)
+                    return
+                }
                 // Placeholders always describe the *other* party, as seen by the reader.
                 sender send msg.player.sender(sender.name, target.name, message) {
                     it.resolvePlaceholders(target, sender)
@@ -145,6 +150,7 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                                 }
                             }
                             Message.WhisperAck.Status.IGNORED -> sender fail cmdMsg.ignore.blockedByTarget
+                            Message.WhisperAck.Status.DECLINED -> sender fail msg.declined(ack.name ?: proxyName)
                             else -> sender fail
                                 if (known != null) msg.targetOffline(known.nameOrId)
                                 else msg.targetInvalid(receiverName)

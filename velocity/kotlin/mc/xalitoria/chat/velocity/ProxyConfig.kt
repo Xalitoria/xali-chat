@@ -5,6 +5,7 @@ import com.charleskorn.kaml.YamlComment
 import com.charleskorn.kaml.YamlConfiguration
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import mc.xalitoria.chat.announce.RedisSettings
 import java.nio.file.Path
 import kotlin.io.path.exists
 import kotlin.io.path.readText
@@ -21,6 +22,8 @@ data class ProxyConfig(
     @SerialName("cross-server-messages")
     @YamlComment("/msg and /reply between players on different servers.")
     val crossServerMessages: CrossServerMessages = CrossServerMessages(),
+    @YamlComment("Where announcements are shared with the servers. The same host and prefix as theirs. Needs a restart.")
+    val redis: RedisSettings = RedisSettings(),
 ) {
     @Serializable
     data class CrossServerMessages(

@@ -10,13 +10,14 @@ each other.
 |---|---|
 | `chat/paper` | The Paper plugin, `xali-chat-<version>-paper.jar`. Everything below is this module unless it says otherwise. |
 | `chat/velocity` | The Velocity plugin, `xali-chat-<version>-velocity.jar`: the [relay](#proxy-sync). It downloads kaml and kotlinx.serialization into `plugins/xalichat/libraries` the first time it starts (checksums are built into the jar), so the proxy needs internet access once. |
+| `chat/api` | What other Paper plugins compile against to take part in XaliChat (see [Working with other plugins](#working-with-other-plugins)). It is shaded into the Paper jar, so the plugin that uses it lists XaliChat as a dependency. |
 | `chat/common` | The wire format both plugins speak (signed frames, chunking, message encodings). No platform API, so both jars bundle it. Targets Java 17. |
 
 The descriptors and the library loader of both plugins come from the [Gradle plugin](../plugin/README.md); the `paper { }` and
 `velocity { }` blocks are in `chat/build.gradle.kts`.
 
-`./gradlew :chat:paper:runServer` and `./gradlew :chat:velocity:runProxy` start a dev server and a dev proxy in each
-module's `run` folder, with the plugin installed. Every jar is built into the repository's `build/libs/<module>/`, for example
+`./gradlew :chat:paper:runServer` and `./gradlew :chat:velocity:runProxy` start the dev server and the dev proxy shared by
+all modules (`run/folia` and `run/velocity`, see the [root README](../README.md)), with this plugin installed. Every jar is built into the repository's `build/libs/<module>/`, for example
 `build/libs/chat/xali-chat-0.5.0-paper.jar`. The proxy there still needs its `velocity.toml` pointed at the server
 and `player-info-forwarding-mode = "modern"`.
 
@@ -71,7 +72,7 @@ numbers, `.`, `_` and `-`, so they always stay inside the `exports` folder.
 
 ## Announcements
 
-`plugins/XaliChat/announcements.yml` maps a key to an announcement. The proxy's copy is the master and is created, with two switched-off examples, on its first start; a server's file holds only the keys that name it.
+`plugins/XaliChat/announcements.yml` maps a key to an announcement. The proxy's copy is the master and is created, with two switched-off examples, on its first start; a server's file holds only the keys that name it. A server with no file reads what Redis holds first and creates its file from that, empty if no key names it; with Redis off it writes an empty file at once.
 
 ```yaml
 "discord":
@@ -123,26 +124,47 @@ runs from `/xannounce` or `/xgannounce`.
 
 ### Where announcements live
 
-The proxy holds every announcement; a server's file holds only the ones whose `servers` name it. You can edit an
-announcement on any server, or the master on the proxy, and it ends up where it belongs:
+Announcements are shared through [Redis](#redis), so the servers and the proxy agree on one set without a player online.
+The proxy's `announcements.yml` holds every announcement; a server's file holds only the ones whose `servers` name it.
+You can edit an announcement on any server, or the master on the proxy, and it ends up where it belongs:
 
-- **Saving the file** sends each key that changed (new, edited or deleted) to the proxy, which passes it on to every
-  other server the key names. Nothing needs a reload, and the timers restart by themselves. Only keys whose content
+- **Saving the file** offers each key that changed (new, edited or deleted) to Redis, which tells everyone else; each
+  server the key names applies it. Nothing needs a reload, and the timers restart by themselves. Only keys whose content
   changed count: comments and layout don't.
 - **The newest save wins.** Every key carries the time its file was saved, and an older copy never replaces a newer
   one, so an edit made on a server while it was down loses to a later one made elsewhere. This compares clocks, so keep
   the machines in sync.
-- **Nothing is dropped live.** If you edit `servers` so a server is no longer named, or delete a key, the other
-  servers keep their copy (and a server that stops being named keeps running nothing, since it checks `servers` itself)
-  until their next `/xalichat reload` or restart. That is when a server asks the proxy what it should hold: it gets
-  what is newer, and what no longer names it is removed from its file.
-- **A server with nobody on it** can't receive plugin messages, so the proxy keeps its update and delivers it when
-  the first player joins. Likewise a server sends its changes once someone is online.
+- **A first start** has no file: the server reads what Redis holds and creates `announcements.yml` from the keys that
+  name it (an empty file if none do, or after ten seconds if Redis doesn't answer; what arrives later is added).
+- **Connecting** (startup, `/xalichat reload` and every five minutes) reads everything Redis holds and applies what is
+  newer, then offers everything in the file, so a Redis that was wiped or down while you edited catches up. A key that
+  was deleted elsewhere, or no longer names this server, is dropped from the file then.
 - A file that fails to parse is logged, the announcements already loaded stay, and nothing is sent.
 
-Updates the proxy sends are written into your file, which drops its comments; a file you save yourself is read as it
-is. The times are kept in `announcements.state.json` beside it (on the proxy too), so don't copy a file without it.
-`/xalichat reload` reloads the file and asks the proxy.
+Updates from Redis are written into your file, which drops its comments; a file you save yourself is read as it is. The
+times are kept in `announcements.state.json` beside it (on the proxy too), so don't copy a file without it.
+
+### Redis
+
+Put the same section in the `config.yml` of every server and of the proxy plugin (`plugins/xalichat/config.yml`):
+
+```yaml
+redis:
+  enable: true # default false: announcements stay in each server's own file
+  host: localhost
+  port: 6379
+  username: "" # empty when Redis has no ACL users
+  password: ""
+  ssl: false
+  prefix: xalichat # starts every key and channel; change it to keep two networks apart
+```
+
+It needs a restart. Redis holds the hash `<prefix>:announcements` (a key to `<modified>|<json>`, nothing after the bar for
+a removal) and tells the channel `<prefix>:announcements:changed` the key whenever a save is taken. A save is taken
+only if it is newer than the stored one, which Redis decides in a script, so two saves at once can't both win. Unlike
+the plugin channel below, nothing here is signed: anyone who can write to that hash can add announcements that run
+console commands, so give Redis a password and keep it off the public internet. If it can't be reached, it is retried
+(1 second, doubling up to 30) and announcements keep working from the files.
 
 ### Broadcast formatting
 
@@ -155,27 +177,22 @@ Broadcasts and announcements parse with their own `Colorizer`, not the shared co
 
 ## Proxy sync
 
-There is nothing to configure in `config.yml`. Turning on Velocity forwarding switches on three things between the
-servers and the proxy plugin, all over the `xalichat:main` plugin channel: [announcement sync](#where-announcements-live),
-`/xgbroadcast` and `/xgannounce`. The signing secret is the forwarding secret the server already has: `secret` under
+Turning on Velocity forwarding switches on three things between the servers and the proxy plugin, all over the
+`xalichat:main` plugin channel: `/xgbroadcast`, `/xgannounce` and the player list for `/msg` completion
+(announcement sync uses [Redis](#redis) instead). The signing secret is the forwarding secret the server already has: `secret` under
 `proxies.velocity` in Paper's `config/paper-global.yml` (with `enabled: true`), read once at startup. The proxy plugin
 gets the same value from the file named by `forwarding-secret-file` in `velocity.toml` (`forwarding.secret` by default),
 so setting up Velocity's modern forwarding is all it takes. Without it these features are off. The secret signs every one
 of these messages: a client can send to a plugin channel too, and a forged announcement would run console commands.
 
-A plugin message needs a player's connection to ride on, so a message waits for the first player online. The proxy side
-is `chat/velocity`; this is the format it and the server speak (the code is in `chat/common`). All integers are
-big-endian and strings use Java's `writeUTF`. An *entries* field is an `int` count, then per entry `UTF key`, `long
-modified` (milliseconds when the key was saved) and an `int` length followed by that many bytes of the announcement as JSON
-with the fields left at their defaults omitted (length -1 and no bytes for a removal).
+A plugin message needs a player's connection to ride on, so a message needs a player online. The proxy side is
+`chat/velocity`; this is the format it and the server speak (the code is in `chat/common`). All integers are big-endian
+and strings use Java's `writeUTF`.
 
 | Frame | Layout | Meaning |
 |---|---|---|
 | `SIGNED` | `UTF "SIGNED"`, 32-byte HMAC-SHA256 of the rest, then the message | Wraps every message below. The proxy computes the HMAC with the forwarding secret, as UTF-8 bytes. |
 | `CHUNK` | `UTF "CHUNK"`, `UTF id`, `int index`, `int total`, bytes | One slice (at most 30 000 bytes) of a message too big for one plugin message (Bukkit's limit is 32 766). The slices, in index order, are the whole `SIGNED` frame. At most 64 slices, and an unfinished transfer is dropped after 30 seconds. |
-| `PUSH` | `UTF "PUSH"`, entries | Server to proxy: the keys that changed in its file. The proxy keeps each one that is newer than its own copy, replies to the server with its own copy of those that aren't, and passes the kept ones on as `UPDATE`. |
-| `UPDATE` | `UTF "UPDATE"`, entries | Proxy to server: keys to apply, each only if newer than the server's copy. An entry without content is a removal, which is applied the same way (and also wins a tie). |
-| `PULL` | `UTF "PULL"`, `int count`, per key `UTF key` and `long modified` | Server to proxy, on startup and reload and after its `PUSH`: the keys it holds. The proxy answers with an `UPDATE` of the keys that name that server and are newer or missing there, and a removal for each held key that is gone or no longer names it. |
 | `BROADCAST` | `UTF "BROADCAST"`, `boolean bypassMute`, Adventure JSON of the message | Server to proxy from `/xgbroadcast`; proxy to every server, including the one that sent it. |
 | `ANNOUNCE` | `UTF "ANNOUNCE"`, `UTF key`, `UTF uuid`, `UTF name` (may be empty) | Server to proxy from `/xgannounce`; proxy to every server, including the sender. Servers not in the announcement's `servers` list skip it. |
 
@@ -183,13 +200,12 @@ Unsigned or wrongly signed frames are ignored.
 
 ### Velocity relay
 
-Install `xali-chat-<version>-velocity.jar` in the proxy's `plugins` folder; it needs no config. It finds the forwarding
+Install `xali-chat-<version>-velocity.jar` in the proxy's `plugins` folder; it needs no config unless you use Redis. It finds the forwarding
 secret the way Velocity does (the `VELOCITY_FORWARDING_SECRET` variable, else the file named by `forwarding-secret-file`
 in `velocity.toml`), registers the channel with the servers, and then:
 
-- keeps the master `plugins/xalichat/announcements.yml` (with its `announcements.state.json`), applies what servers
-  `PUSH`, answers their `PULL`s, and sends every key that changed to the servers it names. Edit the master by hand
-  and it is spread the same way;
+- keeps the master `plugins/xalichat/announcements.yml` (with its `announcements.state.json`) and shares it through
+  [Redis](#redis) when `redis.enable` is on. Edit the master by hand and it is shared the same way;
 - relays a global broadcast or announcement to every server, the sender included, and logs it to its own console
   (`[Broadcast from <server>] <text>`; how far it was relayed is only logged with `debug: true`);
 - sends every server the names of everyone on the proxy, for tab-completing `/msg`, whenever someone joins, leaves or
@@ -206,7 +222,7 @@ sender's and the receiver's server both listed), or switched off for one server 
 that server's `config.yml`. A server that is out gets "not found" for players elsewhere and is not found itself. A
 vanished player (SuperVanish/PremiumVanish) the sender can't see counts as not found, on this server and through the proxy.
 
-The first start writes `plugins/xalichat/config.yml` (`debug`, `tab-completion`, `cross-server-messages`) and a
+The first start writes `plugins/xalichat/config.yml` (`debug`, `tab-completion`, `cross-server-messages`, `redis`) and a
 master `announcements.yml` holding two switched-off examples, so there is something to edit.
 
 `servers` patterns are matched against the server names in `velocity.toml`, and each server checks them against its own
@@ -214,6 +230,25 @@ master `announcements.yml` holding two switched-off examples, so there is someth
 
 Only a file that is valid YAML is synced. A save that doesn't parse (on the proxy or a server) is logged and changes
 nothing; the last working version is written beside it as `announcements.yml.bak`, so the fix is an edit away.
+
+## Working with other plugins
+
+`chat/api` (`mc.xalitoria.chat.api`) is how a plugin takes part without XaliChat knowing about it. List XaliChat as a
+dependency of the plugin (`join-classpath` on, optional if the plugin can do without), and compile against
+`compileOnly(project(":chat:api"))`. Both are found through Bukkit's services manager.
+
+- **`PrivateMessageGate`** is registered by the plugin: `servicesManager.register(PrivateMessageGate::class.java, gate, plugin, ServicePriority.Normal)`.
+  XaliChat asks every gate before it delivers a private message to a player on its server, for a sender on that server
+  and for one that reached it through the proxy. If any says no, the sender is told `"{0} isn't accepting messages from you."`
+  (`commands.message.declined` in the language file) and nothing is delivered. The question is asked on the main thread
+  for every message, so a gate answers from memory. Senders with `xalichat.bypass.message.ignore` skip the gates.
+  [XaliFriends](../friends/README.md) uses it for players who take messages from friends only.
+- **`NetworkPlayers`** is provided by XaliChat: `isOnline(name, viewer)` says whether a player is online anywhere behind the
+  proxy (as the proxy last told this server) and not vanished from the viewer. Without a proxy only this server's players count.
+
+A plugin that carries its own copy of the Kotlin runtime can't register Kotlin-typed things with another plugin
+(a `KSerializer` or a `KClass` from its copy is a different class from the other plugin's), which is why both of these
+use only Bukkit and Java types.
 
 ## Interactive chat
 
@@ -255,7 +290,7 @@ Decoration names: `obfuscated`/`magic`/`k`, `bold`/`b`/`l`, `strikethrough`/`st`
 | Permission | Effect |
 |---|---|
 | `xalichat.bypass.ignore` | Others' ignore lists don't hide your chat. |
-| `xalichat.bypass.message.ignore` | You can't be added to an ignore list. |
+| `xalichat.bypass.message.ignore` | You can't be added to an ignore list, and a plugin that limits who may message a player (see below) doesn't stop your private messages. |
 | `xalichat.bypass.mute.players` | Your chat still reaches players who muted global chat. |
 | `xalichat.bypass.mute.broadcasts` | Your broadcasts and announcements still reach players who muted broadcasts. |
 

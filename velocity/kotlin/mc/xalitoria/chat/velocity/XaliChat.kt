@@ -10,6 +10,7 @@ import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier
 import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.api.scheduler.ScheduledTask
 import mc.xalitoria.chat.announce.AnnouncementStore
+import mc.xalitoria.chat.announce.AnnouncementSync
 import mc.xalitoria.chat.announce.serverMatches
 import mc.xalitoria.chat.protocol.Entry
 import mc.xalitoria.chat.protocol.Message
@@ -37,14 +38,12 @@ import kotlin.jvm.optionals.getOrElse
 /**
  * The proxy end of XaliChat's messaging.
  *
- * It holds the announcements: `plugins/xalichat/announcements.yml` is the master, and each server keeps only the keys
- * whose `servers` name it (patterns like `skyblock-*` are matched against the names in velocity.toml). A server sends
- * what it saved; the newest save of each key wins and goes on to the other servers that key names. A server that asks
- * (on restart or reload) is told what is newer for it and what it should drop. Saving the master file does the same
- * for every server. A broadcast or announcement is passed to every server, the sender included. A private message
- * goes to the server its receiver is on, and how it went comes back to the server it was sent from. The names of
- * everyone on the proxy, less the vanished players each viewer can't see (PremiumVanish), go to the servers for tab
- * completion whenever someone joins, leaves or vanishes, a moment after the last of a burst.
+ * It holds the master announcements: `plugins/xalichat/announcements.yml`, shared with the servers through Redis (see
+ * [AnnouncementSync]) when `redis` is on in its config.yml; saving the file offers what changed to Redis, and what
+ * Redis holds that is newer is written into the file. A broadcast or announcement is passed to every server, the sender
+ * included. A private message goes to the server its receiver is on, and how it went comes back to the server it was
+ * sent from. The names of everyone on the proxy, less the vanished players each viewer can't see (PremiumVanish), go
+ * to the servers for tab completion whenever someone joins, leaves or vanishes, a moment after the last of a burst.
  *
  * Messages are signed with the forwarding secret from velocity.toml and anything else is dropped.
  */
@@ -60,13 +59,12 @@ class XaliChat(
     /** One per server: a chunked transfer's id only means something to the server that made it. */
     private val reassemblers = ConcurrentHashMap<String, Reassembler>()
 
-    /** Updates for servers with nobody on them (a plugin message needs a player), by server name then key. */
-    private val pending = ConcurrentHashMap<String, ConcurrentHashMap<String, Entry>>()
-
     /** Whispers still waiting on the receiving server's answer, by id, with the server that sent each. */
     private val whispers = ConcurrentHashMap<UUID, RegisteredServer>()
 
     private lateinit var store: AnnouncementStore
+
+    private var sync: AnnouncementSync? = null
 
     private var config = ProxyConfig()
 
@@ -107,11 +105,18 @@ class XaliChat(
             ProxyConfig()
         }
         val file = dataDirectory.resolve("announcements.yml")
-        if (!file.exists() && !dataDirectory.resolve("announcements.state.json").exists()) {
+        store = AnnouncementStore(file, dataDirectory.resolve("announcements.state.json"))
+        // Only when nothing has ever been held: with a history, a missing file reads as every key deleted.
+        if (!file.exists() && !store.hasHistory()) {
             XaliChat::class.java.getResourceAsStream("/announcements.yml")?.use { Files.copy(it, file) }
         }
-        store = AnnouncementStore(file, dataDirectory.resolve("announcements.state.json"))
         rescan()
+        if (config.redis.enable) {
+            // Connecting offers everything the master holds, so its first copy reaches Redis whenever that is up.
+            sync = AnnouncementSync(config.redis, store, { null }, ::applyShared, SyncLog()).also { it.start() }
+        } else {
+            logger.info("Redis is off, so announcements are not shared; each server keeps its own announcements.yml")
+        }
         watch(file)
 
         proxy.channelRegistrar.register(channel)
@@ -125,19 +130,12 @@ class XaliChat(
         logger.info("XaliChat relay ready on {} with {} announcements", Protocol.CHANNEL, store.announcements.size)
     }
 
-    override fun close() {}
-
-    /** Servers that were empty when an update was sent for them get it as soon as someone joins. */
-    @Subscribe
-    fun onServerPostConnect(event: ServerPostConnectEvent) {
-        refreshPlayers()
-        val server = event.player.currentServer.orElse(null)?.server ?: return
-        val queued = pending.remove(server.serverInfo.name) ?: return
-        val fresh = synchronized(store) {
-            queued.keys.mapNotNull { store.entry(it) }.filter { it.json != null && naming(it, server) }
-        }
-        if (fresh.isNotEmpty()) deliver(server, Update(fresh))
+    override fun close() {
+        sync?.close()
     }
+
+    @Subscribe
+    fun onServerPostConnect(event: ServerPostConnectEvent) = refreshPlayers()
 
     @Subscribe
     fun onDisconnect(event: DisconnectEvent) = refreshPlayers()
@@ -160,8 +158,6 @@ class XaliChat(
         val origin = source.server
         val frame = reassemblers.getOrPut(origin.serverInfo.name) { Reassembler() }.accept(event.data) ?: return
         when (val message = Protocol.open(secret, frame)) {
-            is Push -> push(origin, message.entries)
-            is Pull -> pull(origin, message.known)
             is Broadcast, is Announce -> {
                 val reached = proxy.allServers.count { deliver(it, message) }
                 when (message) {
@@ -172,7 +168,7 @@ class XaliChat(
             }
             is Whisper -> whisper(origin, message)
             is WhisperAck -> whispers.remove(message.id)?.let { deliver(it, message) }
-            is Update, is Players -> logger.warn("Dropped an {} from {}: only the proxy sends those", message::class.simpleName, origin.serverInfo.name)
+            is Players -> logger.warn("Dropped a Players from {}: only the proxy sends those", origin.serverInfo.name)
             null -> logger.warn("Dropped a message from {} with a missing or wrong signature", origin.serverInfo.name)
         }
     }
@@ -201,28 +197,16 @@ class XaliChat(
         deliver(server, Whisper(message.id, message.from, message.fromUuid, message.bypassIgnore, message.seesVanished, target.username, message.text))
     }
 
-    /**
-     * Keeps what [origin] saved if it is newer than the master's copy and passes it to the other servers it names. What
-     * is older than the master's copy is answered with the master's. A key that origin no longer names is left in its
-     * file until it reloads.
-     */
-    private fun push(origin: RegisteredServer, entries: List<Entry>) {
-        val (stale = first, accepted = second) = synchronized(store) {
-            spread(rescan(), except = null)
-            val accepted = entries.filter { store.apply(it) }
-            if (accepted.isNotEmpty()) store.write()
-            (entries - accepted.toSet()).mapNotNull { store.entry(it.key) } to accepted
+    /** Takes what Redis holds that is newer than the master file and writes the file; hand-written comments are lost. */
+    private fun applyShared(entries: List<Entry>) {
+        synchronized(store) {
+            // The file first, so that an edit not picked up yet isn't written over (it goes to Redis as usual).
+            val changes = rescan()
+            val applied = entries.count { store.apply(it) }
+            if (applied > 0) store.write()
+            logger.info("Took {} of {} announcements from Redis", applied, entries.size)
+            sync?.push(changes)
         }
-        logger.info("{} pushed {} entries: {} kept, {} out of date", origin.serverInfo.name, entries.size, accepted.size, stale.size)
-        if (stale.isNotEmpty()) deliver(origin, Update(stale))
-        spread(accepted, except = origin)
-    }
-
-    private fun pull(origin: RegisteredServer, known: Map<String, Long>) {
-        val reply = synchronized(store) { spread(rescan(), except = null); store.forServer(origin.serverInfo.name, known) }
-        pending.remove(origin.serverInfo.name)
-        logger.info("{} pulled with {} keys: {} to send", origin.serverInfo.name, known.size, reply.size)
-        if (reply.isNotEmpty()) deliver(origin, Update(reply))
     }
 
     /** Re-reads the master file, returning what changed in it. */
@@ -233,28 +217,10 @@ class XaliChat(
         emptyList()
     }
 
-    /** Sends each of [entries] that still has content to every server it names, except [except]. */
-    private fun spread(entries: List<Entry>, except: RegisteredServer?) {
-        val live = entries.filter { it.json != null }
-        if (live.isEmpty()) return
-        proxy.allServers.filter { it != except }.forEach { target ->
-            val named = live.filter { naming(it, target) }
-            if (named.isNotEmpty()) deliver(target, Update(named))
-        }
-    }
-
-    private fun naming(entry: Entry, server: RegisteredServer): Boolean =
-        store.announcements[entry.key]?.appliesTo(server.serverInfo.name) == true
-
-    /** Sends [message] to [target], or keeps the entries of an update until someone is on it. */
+    /** Sends [message] to [target]; false when it can't be signed or nobody is on [target] to carry it. */
     private fun deliver(target: RegisteredServer, message: Message): Boolean {
-        val secret = secret ?: return false // nothing can be signed without it, and nothing queued could ever be sent
-        val sent = Protocol.seal(secret, message).map { target.sendPluginMessage(channel, it) }.all { it }
-        if (!sent && message is Update) {
-            val queue = pending.getOrPut(target.serverInfo.name) { ConcurrentHashMap() }
-            message.entries.forEach { queue.merge(it.key, it) { old, new -> if (new.modified >= old.modified) new else old } }
-        }
-        return sent
+        val secret = secret ?: return false
+        return Protocol.seal(secret, message).map { target.sendPluginMessage(channel, it) }.all { it }
     }
 
     /** Whether private messages between servers include [server]: switched on, and named by `servers` if that has any. */
@@ -315,10 +281,16 @@ class XaliChat(
                     key.reset() // always, or the next change to any other file in the folder (the state file) ends the watching
                     if (!touched) continue
                     Thread.sleep(300) // editors save in several steps
-                    synchronized(store) { spread(rescan(), except = null) }
+                    synchronized(store) { sync?.push(rescan()) }
                 }
             }
         }
+    }
+
+    private inner class SyncLog : AnnouncementSync.Log {
+        override fun info(message: String) = logger.info(message)
+        override fun warn(message: String, error: Throwable?) = logger.warn(message, error)
+        override fun debug(message: String) = debug("{}", message)
     }
 
     companion object {

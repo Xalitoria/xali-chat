@@ -1,4 +1,3 @@
-import mc.xalitoria.chat.protocol.Entry
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.protocol.Protocol
 import mc.xalitoria.chat.protocol.Reassembler
@@ -23,17 +22,6 @@ class Protocol {
     @Test
     fun messagesRoundTrip() {
         val uuid = UUID.randomUUID()
-        val push = assertIs<Message.Push>(receive(Protocol.seal(secret, Message.Push(listOf(Entry("a", 5, """{"messages":["é"]}"""), Entry("b", 7, null))))))
-        assertEquals(listOf("a" to 5L, "b" to 7L), push.entries.map { it.key to it.modified })
-        assertEquals("""{"messages":["é"]}""", push.entries[0].json)
-        assertNull(push.entries[1].json)
-
-        val update = assertIs<Message.Update>(receive(Protocol.seal(secret, Message.Update(emptyList()))))
-        assertEquals(0, update.entries.size)
-
-        val pull = assertIs<Message.Pull>(receive(Protocol.seal(secret, Message.Pull(mapOf("a" to 5L, "b" to 0L)))))
-        assertEquals(mapOf("a" to 5L, "b" to 0L), pull.known)
-
         val broadcast = assertIs<Message.Broadcast>(receive(Protocol.seal(secret, Message.Broadcast(true, """{"text":"hi é"}"""))))
         assertEquals(true, broadcast.bypassMute)
         assertEquals("""{"text":"hi é"}""", broadcast.json)
@@ -49,6 +37,7 @@ class Protocol {
         val ack = assertIs<Message.WhisperAck>(receive(Protocol.seal(secret, Message.WhisperAck(uuid, Message.WhisperAck.Status.IGNORED, "Jeb_"))))
         assertEquals(Triple(uuid, Message.WhisperAck.Status.IGNORED, "Jeb_"), Triple(ack.id, ack.status, ack.name))
         assertNull(assertIs<Message.WhisperAck>(receive(Protocol.seal(secret, Message.WhisperAck(uuid, Message.WhisperAck.Status.NOT_FOUND, null)))).name)
+        assertEquals(Message.WhisperAck.Status.DECLINED, assertIs<Message.WhisperAck>(receive(Protocol.seal(secret, Message.WhisperAck(uuid, Message.WhisperAck.Status.DECLINED, "Jeb_")))).status)
 
         val players = assertIs<Message.Players>(receive(Protocol.seal(secret, Message.Players(["Notch", "jeb_", "Dinnerbone"], mapOf("jeb_" to listOf("Notch"), "Dinnerbone" to emptyList())))))
         assertEquals(listOf("Notch", "jeb_", "Dinnerbone"), players.names)
@@ -84,20 +73,20 @@ class Protocol {
     @Test
     fun bigMessageIsChunkedAndReassembledInAnyOrder() {
         val content = "x".repeat(81_380)
-        val frames = Protocol.seal(secret, Message.Push(listOf(Entry("big", 1, content))))
+        val frames = Protocol.seal(secret, Message.Broadcast(false, content))
         assertEquals(3, frames.size)
         assertTrue(frames.all { it.size <= 32_766 }, "each frame fits a plugin message")
 
         val reassembler = Reassembler()
         val whole = listOf(frames[2], frames[0], frames[1]).mapNotNull { reassembler.accept(it) }.single()
-        assertEquals(content, assertIs<Message.Push>(Protocol.open(secret, whole)).entries.single().json)
+        assertEquals(content, assertIs<Message.Broadcast>(Protocol.open(secret, whole)).json)
     }
 
     @Test
     fun unfinishedTransferExpires() {
         var now = 0L
         val reassembler = Reassembler(30.seconds) { now }
-        val frames = Protocol.seal(secret, Message.Push(listOf(Entry("big", 1, "y".repeat(70_000)))))
+        val frames = Protocol.seal(secret, Message.Broadcast(false, "y".repeat(70_000)))
         assertNull(reassembler.accept(frames[0]))
         now += 31.seconds.inWholeNanoseconds
         assertNull(reassembler.accept(frames[1]))

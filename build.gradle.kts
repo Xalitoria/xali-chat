@@ -7,7 +7,7 @@ plugins {
 
 subprojects {
     group = "mc.xalitoria"
-    version = "0.5.0"
+    version = "0.7.0"
 }
 
 tasks.named("build") {
@@ -31,12 +31,19 @@ paper {
         }
         register("SignedVelocity")
         register("PlaceholderAPI")
-        register("ProtocolLib")
+        register("ProtocolLib") { required = false }
         register("Vault") { required = false }
         register("VaultUnlocked") { required = false }
         register("DiscordSRV-Ascension") { required = false }
         register("SuperVanish") { required = false }
         register("PremiumVanish") { required = false }
+    }
+    // The dev build of ProtocolLib tracks new Minecraft versions, so it isn't pinned.
+    server {
+        plugin("ProtocolLib.jar", "https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar")
+        plugin("PlaceholderAPI-2.12.3.jar", "https://cdn.modrinth.com/data/lKEzGugV/versions/pIvQcXW8/PlaceholderAPI-2.12.3.jar")
+        plugin("VaultUnlocked-2.20.3.jar", "https://cdn.modrinth.com/data/ayRaM8J7/versions/qZgRzoYs/VaultUnlocked-2.20.3.jar")
+        plugin("SignedVelocity-Paper-1.5.0.jar", "https://cdn.modrinth.com/data/7IbzD4Zm/versions/oEqZsNvv/SignedVelocity-Paper-1.5.0.jar")
     }
 }
 

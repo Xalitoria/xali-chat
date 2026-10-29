@@ -4,6 +4,7 @@ import com.charleskorn.kaml.YamlComment
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import mc.xalitoria.chat.announce.RedisSettings
 
 @Serializable
 data class MainConfig(
@@ -30,6 +31,8 @@ data class MainConfig(
     @SerialName("cross-server-messages")
     val crossServerMessages: Boolean = true,
     val database: Database = Database(),
+    @YamlComment("Where announcements are shared with the other servers and the proxy. Needs a restart.")
+    val redis: RedisSettings = RedisSettings(),
     val nickname: Nickname = Nickname(),
     @YamlComment(
         "Where chat and commands are recorded: the database when 'database' is true, otherwise (or",
@@ -66,6 +69,10 @@ data class MainConfig(
 
     @Serializable
     data class Nickname(
+        @YamlComment("Turns /nickname and the stored nicknames off. Command registration applies on restart.")
+        val enable: Boolean = true,
+        @YamlComment("sync to the database if using anything but sqlite", "false keeps nicknames in a local nicknames.db next to this config. Needs a restart.")
+        val remote: Boolean = false,
         @YamlComment("Max visible characters (formatting tags don't count); clamped to the 64 the database stores.")
         @SerialName("max-length")
         val maxLength: Int = 16,
@@ -75,6 +82,7 @@ data class MainConfig(
 
     @Serializable
     data class Database(
+        @YamlComment("Database types: mariadb or mysql, sqlite")
         val type: String = "sqlite",
         @YamlComment("Prepended to every table name: letters, digits and underscores. Needs a restart; a new prefix means new, empty tables.")
         @SerialName("table-prefix")
@@ -83,6 +91,7 @@ data class MainConfig(
         @SerialName("server-name")
         val serverName: String = "server",
         val sqlite: Sqlite = Sqlite(),
+        @YamlComment("MySQL/MariaDB connection settings")
         val mysql: Mysql = Mysql(),
     ) {
         @Serializable

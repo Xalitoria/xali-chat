@@ -7,12 +7,14 @@ plugins {
 
 // What the Paper and Velocity plugins share: the wire format and the announcement store. It uses no platform API, so
 // both jars bundle it, and it targets Java 17 because Velocity may run on an older JVM than Paper.
-// kaml and kotlinx.serialization are compileOnly: Paper's library loader supplies them (through util), and the
-// Velocity plugin bundles its own.
+// kaml, kotlinx.serialization and Jedis are compileOnly: Paper's library loader supplies them (through util and its
+// own dependencies), and the Velocity plugin declares its own.
 dependencies {
     compileOnly(libs.kaml)
+    compileOnly(libs.jedis)
     compileOnly(kotlinx("serialization-json"))
     testImplementation(libs.kaml)
+    testImplementation(libs.jedis)
     testImplementation(kotlinx("serialization-json"))
 }
 

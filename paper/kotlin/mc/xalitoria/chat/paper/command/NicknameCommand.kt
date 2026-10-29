@@ -21,6 +21,8 @@ import mc.xalitoria.chat.paper.util.suggestMatching
 import mc.xalitoria.chat.paper.util.visiblePlayerNames
 import mc.xalitoria.util.message.*
 import mc.xalitoria.util.bukkit.runTask
+import mc.xalitoria.util.bukkit.runTaskLater
+import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player
 
 /**
@@ -49,6 +51,10 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
             }
             .executes { ctx ->
                 val sender = ctx.source.sender
+                if (!plugin.config.data.nickname.enable) {
+                    sender fail msg.disabled
+                    return@executes Command.SINGLE_SUCCESS
+                }
                 val words = StringArgumentType.getString(ctx, "args").trim().split(Regex("\\s+"), limit = 2)
                 val input = words.last()
                 val targetInput = words.first().takeIf { words.size > 1 }
@@ -143,5 +149,13 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
     private val msg get() = cmdMsg.nickname
 
     /** [nickname] was already stripped for whoever set it, so it is shown as stored. */
-    fun Player.applyNickname(nickname: String?) = displayName(nickname?.toComponent())
+    fun Player.applyNickname(nickname: String?) {
+        val component = nickname?.toComponent()
+        displayName(component)
+        // Another plugin that owns the display name (chat, tab or essentials-style) can write it back; say so in the debug log.
+        XaliChat.INSTANCE.runTaskLater(2) {
+            if (isOnline && displayName() != (component ?: Component.text(this@applyNickname.name)))
+                debug("The display name of {0} was changed by another plugin to '{1}'", this@applyNickname.name, PLAIN.serialize(displayName()))
+        }
+    }
 }

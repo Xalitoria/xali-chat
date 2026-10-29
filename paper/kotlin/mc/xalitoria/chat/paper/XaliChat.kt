@@ -4,6 +4,7 @@ import com.comphenix.protocol.ProtocolLibrary
 import com.comphenix.protocol.ProtocolManager
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import kotlinx.coroutines.*
+import mc.xalitoria.chat.api.NetworkPlayers
 import mc.xalitoria.chat.paper.command.*
 import mc.xalitoria.chat.paper.concurrent.ProxyMessenger
 import mc.xalitoria.chat.paper.data.config.*
@@ -14,8 +15,10 @@ import mc.xalitoria.chat.paper.external.protocol.*
 import mc.xalitoria.chat.paper.listener.*
 import mc.xalitoria.chat.paper.modal.announce.Announcements
 import mc.xalitoria.chat.paper.modal.ic.*
+import mc.xalitoria.chat.paper.util.ProxyPlayers
 import mc.xalitoria.util.config.YamlFile
 import mc.xalitoria.util.message.*
+import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
 
 class XaliChat : JavaPlugin() {
@@ -72,7 +75,7 @@ class XaliChat : JavaPlugin() {
         reload()
 
         try {
-            DatabaseManager.connect(this, config.data.database)
+            DatabaseManager.connect(this, config.data.database, config.data.nickname)
         } catch (e: Exception) {
             logger.fail("Failed to connect to the database; disabling.", e)
             pm.disablePlugin(this)
@@ -95,6 +98,8 @@ class XaliChat : JavaPlugin() {
         announcements = Announcements(this).also { it.start() }
 
         VanishAPI.find()
+        // What other plugins can ask of this one (see :chat:api).
+        server.servicesManager.register(NetworkPlayers::class.java, NetworkPlayers { name, viewer -> ProxyPlayers.isOnline(name, viewer) }, this, ServicePriority.Normal)
         interactive = Interactives(this)
         pm.registerEvents(interactive, this)
         if (pm.getPlugin("DiscordSRV") != null) {
@@ -117,6 +122,8 @@ class XaliChat : JavaPlugin() {
         scope.cancel("XaliChat is disabling")
         server.messenger.unregisterOutgoingPluginChannel(this)
         server.messenger.unregisterIncomingPluginChannel(this)
+        server.servicesManager.unregisterAll(this)
+        if (::announcements.isInitialized) announcements.close()
         DatabaseManager.close()
     }
 
@@ -127,6 +134,7 @@ class XaliChat : JavaPlugin() {
             if (config.data.debug) { message: String, args: Array<out Any?> -> logger.info(message.formatArgs(*args)) }
             else { message: String, args: Array<out Any?> -> }
         debug("Reloaded: language={0}, interactive-chat={1}, database={2}", config.data.language, config.data.interactiveChat, config.data.database.type)
+        debugEssentialsDisplayNames()
         // The database is only connected after the first load, so a reload before that is a no-op here.
         if (::logs.isInitialized) applyPacketListeners()
         messageConfig.load()
@@ -136,6 +144,14 @@ class XaliChat : JavaPlugin() {
         // Not created yet on the first reload; starting it loads the file itself.
         if (::announcements.isInitialized) announcements.reload()
         logger.pass(messageConfig.data.commands.reload.pass)
+    }
+
+    /** Essentials rewrites display names on chat, join and world change by default, which undoes our nicknames. */
+    private fun debugEssentialsDisplayNames() {
+        if (!config.data.nickname.enable) return
+        val essentials = server.pluginManager.getPlugin("Essentials") ?: return
+        if (essentials.config.getBoolean("change-displayname", true))
+            debug("Nicknames are enabled here and Essentials' change-displayname is on too; Essentials will overwrite nicknames. Set change-displayname: false in its config.yml.")
     }
 
     /** Registers or unregisters the ProtocolLib listeners to match `protocol-listeners`, so a reload can flip it live. */

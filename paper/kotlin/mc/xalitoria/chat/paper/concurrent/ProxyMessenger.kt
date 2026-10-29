@@ -8,6 +8,7 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
 import mc.xalitoria.chat.paper.external.VanishAPI
+import mc.xalitoria.chat.paper.util.PrivateMessageGates
 import mc.xalitoria.chat.paper.util.ProxyPlayers
 import mc.xalitoria.chat.paper.util.ReplyTracker
 import mc.xalitoria.chat.paper.util.SpyNotifier
@@ -73,7 +74,6 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
         val frame = reassembler.accept(message) ?: return
         when (val subchannel = Protocol.subchannel(frame)) {
             Protocol.SIGNED -> when (val opened = Protocol.open(secret, frame)) {
-                is Message.Update -> plugin.announcements.receive(opened.entries)
                 is Message.Broadcast -> {
                     val component = GCOMP.deserialize(opened.json)
                     plugin.announcements.send(opened.bypassMute) { listOf(component) }
@@ -85,7 +85,6 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
                 }
                 is Message.Whisper -> receiveWhisper(opened)
                 is Message.WhisperAck -> pending.remove(opened.id)?.complete(opened)
-                is Message.Push, is Message.Pull -> debug("Ignored {0}: only the proxy takes it", opened::class.simpleName)
                 null -> debug("Ignored a proxy message with a missing or wrong signature")
             }
             else -> debug("Ignored proxy message {0}", subchannel)
@@ -129,6 +128,8 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
                 target == null || (!whisper.seesVanished && VanishAPI.isVanished(target)) -> Message.WhisperAck(whisper.id, Message.WhisperAck.Status.NOT_FOUND, null)
             !whisper.bypassIgnore && whisper.fromUuid?.let { IgnoreCache.isIgnoring(target.uniqueId, it) } == true ->
                 Message.WhisperAck(whisper.id, Message.WhisperAck.Status.IGNORED, target.name)
+            !whisper.bypassIgnore && !PrivateMessageGates.allows(whisper.fromUuid, target) ->
+                Message.WhisperAck(whisper.id, Message.WhisperAck.Status.DECLINED, target.name)
             else -> {
                 target send plugin.messageConfig.data.commands.message.player.target(whisper.from, target.name, whisper.text) {
                     it.resolvePlaceholders(null, target)

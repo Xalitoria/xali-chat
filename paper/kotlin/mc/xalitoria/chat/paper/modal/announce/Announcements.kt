@@ -2,20 +2,19 @@ package mc.xalitoria.chat.paper.modal.announce
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import mc.xalitoria.chat.announce.Announcement
 import mc.xalitoria.chat.announce.AnnouncementStore
+import mc.xalitoria.chat.announce.AnnouncementSync
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.util.Colorizer
 import mc.xalitoria.chat.protocol.Entry
-import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.util.message.fail
 import me.clip.placeholderapi.PlaceholderAPI
@@ -25,8 +24,9 @@ import org.bukkit.entity.Player
 import java.nio.file.FileSystems
 import java.nio.file.StandardWatchEventKinds.ENTRY_CREATE
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
+import kotlin.io.path.exists
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Level
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
@@ -38,11 +38,12 @@ import kotlin.time.Duration.Companion.seconds
  * Runs the announcements in `announcements.yml`: the ones with a delay or repeat on their own timers, the rest when a
  * command or the proxy asks.
  *
- * The proxy holds every announcement; this server's file holds the ones whose `servers` name it. Saving the file sends
- * the keys that changed (new, edited or deleted) to the proxy, which keeps the newest save of each and passes it to
- * the servers it names. What the proxy sends back is applied as it arrives, so nothing needs a reload. A key that
- * stops naming this server, or was deleted elsewhere, stays in the file until the next `/xalichat reload` or restart,
- * which asks the proxy what this server should hold and drops the rest. See [AnnouncementStore] for how saves are told apart.
+ * With `redis` on, the announcements are shared through Redis (see [AnnouncementSync]): this server's file holds the
+ * ones whose `servers` name it. Saving the file sends the keys that changed (new, edited or deleted) to Redis, which
+ * keeps the newest save of each and tells everyone else, and what comes back is applied as it arrives, so nothing
+ * needs a reload. A key that stops naming this server, or was deleted elsewhere, is dropped from the file when
+ * Redis next tells us, which is on a restart, `/xalichat reload` and every few minutes. See [AnnouncementStore] for
+ * how saves are told apart.
  */
 class Announcements(private val plugin: XaliChat) {
     private val path = plugin.dataPath.resolve(FILE)
@@ -53,30 +54,21 @@ class Announcements(private val plugin: XaliChat) {
 
     private var timers: List<Job> = []
 
-    /** Changes the proxy hasn't been sent yet, the newest per key, and whether it still has to be asked what to hold. */
-    private val outbox = ConcurrentHashMap<String, Entry>()
-
-    @Volatile
-    private var pulling = false
-    private val wake = Channel<Unit>(Channel.CONFLATED)
+    private var sync: AnnouncementSync? = null
 
     fun start() {
-        reload()
-
-        // A plugin message needs a player's connection to ride on, so sending waits for one.
-        plugin.scope.launch {
-            for (ignored in wake) {
-                while (outbox.isNotEmpty() || pulling) {
-                    val batch = outbox.values.toList()
-                    if (batch.isNotEmpty() && !plugin.messenger.send(Message.Push(batch))) { delay(5.seconds); continue }
-                    batch.forEach { outbox.remove(it.key, it) }
-                    if (pulling) {
-                        if (!plugin.messenger.send(Message.Pull(store.known()))) { delay(5.seconds); continue }
-                        pulling = false
-                    }
-                }
+        val redis = plugin.config.data.redis
+        if (redis.enable) {
+            sync = AnnouncementSync(redis, store, { plugin.config.data.database.serverName }, ::receive, SyncLog()).also { it.start() }
+            // A first start creates its file from what Redis holds. If that doesn't come, an empty one is better than none.
+            if (!path.exists()) plugin.scope.launch(Dispatchers.IO) {
+                delay(FIRST_START_WAIT)
+                writeIfMissing("Redis did not answer in time")
             }
+        } else {
+            writeIfMissing("Redis is off")
         }
+        reload()
 
         // Editors save in several steps (temp file, rename), hence the wait before reading.
         plugin.scope.launch(Dispatchers.IO) {
@@ -88,21 +80,33 @@ class Announcements(private val plugin: XaliChat) {
                     key.reset()
                     if (!touched) continue
                     delay(300.milliseconds)
-                    load(force = false, pull = false)
+                    load(force = false)
                 }
             }
         }
     }
 
-    /** Loads the file, restarts every timer and asks the proxy what this server should hold: `/xalichat reload`. */
-    fun reload(): Boolean = load(force = true, pull = true)
+    fun close() {
+        sync?.close()
+        timers.forEach { it.cancel() }
+    }
+
+    /** Creates the file with nothing in it, unless there is one by now. */
+    private fun writeIfMissing(reason: String) = synchronized(this) {
+        if (path.exists()) return
+        store.write()
+        plugin.logger.info("Created an empty $FILE ($reason); announcements will be added to it when they are shared.")
+    }
+
+    /** Loads the file, restarts every timer and asks Redis what this server should hold: `/xalichat reload`. */
+    fun reload(): Boolean = load(force = true).also { sync?.let { sync -> plugin.scope.launch(Dispatchers.IO) { sync.sync() } } }
 
     /**
-     * Reads the file and queues what changed for the proxy. A save that changed nothing (comments, our own writes)
+     * Reads the file and sends what changed to Redis. A save that changed nothing (comments, our own writes)
      * leaves the timers running unless [force]. A file that fails to parse is logged and the loaded announcements stay.
      */
     @Synchronized
-    private fun load(force: Boolean, pull: Boolean): Boolean {
+    private fun load(force: Boolean): Boolean {
         val changes = try {
             store.scan()
         } catch (e: Exception) {
@@ -111,15 +115,8 @@ class Announcements(private val plugin: XaliChat) {
         }
         if (force || changes.isNotEmpty()) schedule()
         debug("Loaded {0} announcements, {1} on timers, {2} changed", announcements.size, timers.size, changes.size)
-        queue(changes, pull)
+        sync?.push(changes)
         return true
-    }
-
-    private fun queue(changes: List<Entry>, pull: Boolean) {
-        if (plugin.messenger.secret.isEmpty()) return
-        changes.forEach { outbox[it.key] = it }
-        if (pull) pulling = true
-        if (outbox.isNotEmpty() || pulling) wake.trySend(Unit)
     }
 
     private fun schedule() {
@@ -139,7 +136,7 @@ class Announcements(private val plugin: XaliChat) {
     }
 
     /**
-     * Applies what the proxy sent. The file is read first, so a save that hasn't been picked up yet isn't written over
+     * Applies what Redis sent. The file is read first, so a save that hasn't been picked up yet isn't written over
      * (and goes to the proxy as usual); one that doesn't parse is left alone and the update is dropped.
      */
     fun receive(entries: List<Entry>) {
@@ -148,16 +145,19 @@ class Announcements(private val plugin: XaliChat) {
                 val changes = try {
                     store.scan()
                 } catch (e: Exception) {
-                    plugin.logger.fail("Dropped an update from the proxy: $FILE doesn't parse.", e)
+                    plugin.logger.fail("Dropped an update from Redis: $FILE doesn't parse.", e)
                     return@launch
                 }
                 val applied = entries.count { store.apply(it) }
-                debug("Applied {0} of {1} entries from the proxy", applied, entries.size)
-                if (applied > 0) {
+                debug("Applied {0} of {1} entries from Redis", applied, entries.size)
+                // The answer to a first start creates the file, even when it names nothing for this server.
+                val first = !path.exists()
+                if (applied > 0 || first) {
                     store.write()
                     schedule()
+                    if (first) plugin.logger.info("Created $FILE from Redis ($applied announcements for this server).")
                 }
-                queue(changes, pull = false)
+                sync?.push(changes)
             }
         }
     }
@@ -225,8 +225,16 @@ class Announcements(private val plugin: XaliChat) {
         debug("Sent to {0}/{1} players (bypassMute={2})", viewers.size, plugin.server.onlinePlayers.size, bypassMute)
     }
 
+    /** Sends what the sync has to say to this plugin's logger. */
+    private inner class SyncLog : AnnouncementSync.Log {
+        override fun info(message: String) = plugin.logger.info(message)
+        override fun warn(message: String, error: Throwable?) = plugin.logger.log(Level.WARNING, message, error)
+        override fun debug(message: String) = debug("{0}", message)
+    }
+
     companion object {
         const val FILE = "announcements.yml"
+        private val FIRST_START_WAIT = 10.seconds
         private val DURATION = Regex("(\\d+)(ms|[tsmhd])?", RegexOption.IGNORE_CASE)
     }
 }

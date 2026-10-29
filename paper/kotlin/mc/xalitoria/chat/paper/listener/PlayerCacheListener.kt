@@ -42,7 +42,8 @@ class PlayerCacheListener(private val plugin: XaliChat) : Listener {
         plugin.scope.launch(Dispatchers.IO) {
             // One transaction: the repositories join it instead of each taking a connection.
             val data = dbTransaction {
-                JoinData(IgnoreRepository.ignoredByViewer(uuid), SettingRepository.load(uuid), NicknameRepository.get(uuid))
+                JoinData(IgnoreRepository.ignoredByViewer(uuid), SettingRepository.load(uuid),
+                    if (plugin.config.data.nickname.enable) NicknameRepository.get(uuid) else null)
             }
 
             if (generations[uuid]?.get() != generation) {

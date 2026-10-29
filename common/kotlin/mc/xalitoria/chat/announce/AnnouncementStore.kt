@@ -61,7 +61,7 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     fun scan(): List<Entry> {
         val text = if (file.exists()) file.readText() else ""
         val loaded = try {
-            if (text.isBlank()) emptyMap() else yaml.decodeFromString(fileSerializer, text)
+            if (text.lines().all { it.isBlank() || it.trimStart().startsWith('#') }) emptyMap() else yaml.decodeFromString(fileSerializer, text)
         } catch (e: Exception) {
             backup()
             throw e
@@ -112,23 +112,30 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
         return true
     }
 
-    /** Writes what is loaded to the file, which drops its comments, and keeps the state in step with it. */
+    /** Whether the file exists. */
+    fun exists(): Boolean = file.exists()
+
+    /** Whether any key has been seen, saved or removed; false for a store that has never held anything. */
+    @Synchronized
+    fun hasHistory(): Boolean = stamps.isNotEmpty()
+
+    /**
+     * Writes what is loaded to the file, under [HEADER], and keeps the state in step with it. Comments written by hand
+     * are dropped. With nothing loaded the file is the header alone, so there is a file to edit.
+     */
     @Synchronized
     fun write() {
         file.parent?.createDirectories()
-        yaml.encodeToString(fileSerializer, announcements).also { lastGood = it; file.writeText(it) }
+        val body = if (announcements.isEmpty()) "" else yaml.encodeToString(fileSerializer, announcements)
+        (HEADER + body).also { lastGood = it; file.writeText(it) }
         saveState()
     }
 
     /** Keeps the last working text as `<file>.bak`, from what is loaded if the file never parsed. */
     private fun backup() {
-        val good = lastGood?.takeIf { it.isNotBlank() } ?: announcements.takeIf { it.isNotEmpty() }?.let { yaml.encodeToString(fileSerializer, it) } ?: return
+        val good = lastGood?.takeIf { it.isNotBlank() && announcements.isNotEmpty() } ?: announcements.takeIf { it.isNotEmpty() }?.let { yaml.encodeToString(fileSerializer, it) } ?: return
         file.resolveSibling(file.fileName.toString() + ".bak").writeText(good)
     }
-
-    /** The keys held and when each was saved, for asking the proxy what is newer. */
-    @Synchronized
-    fun known(): Map<String, Long> = announcements.keys.associateWith { stamps[it]?.modified ?: 0 }
 
     /** [key] as it is held now, or as the removal that replaced it; null for a key never seen. */
     @Synchronized
@@ -138,19 +145,29 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
         return Entry(key, stamp.modified, wire.encodeToString(Announcement.serializer(), announcement))
     }
 
+    /** Every key seen, as it is held now or as the removal that replaced it. */
+    @Synchronized
+    fun allEntries(): List<Entry> = stamps.keys.mapNotNull { entry(it) }
+
     /**
-     * What to tell [server], which holds [known]: every key that names it and is newer than its copy or missing from
-     * it, plus a removal for each of its keys that is gone or no longer names it.
+     * Which of [master], the shared copies, a holder of [server] should [apply]: those that name it (all of them for
+     * null, the proxy), a removal for each key it holds that no longer names it, and the removals as they come, for
+     * the times to be known. An entry older than the holder's is left in: [apply] turns it down.
      */
     @Synchronized
-    fun forServer(server: String, known: Map<String, Long>): List<Entry> {
-        val newer = announcements.filter { it.value.appliesTo(server) }.keys
-            .mapNotNull { entry(it) }
-            .filter { it.modified > (known[it.key] ?: -1) }
-        val removed = known.keys
-            .filter { key -> announcements[key]?.appliesTo(server) != true }
-            .mapNotNull { key -> stamps[key]?.let { Entry(key, it.modified, null) } }
-        return newer + removed
+    fun relevant(server: String?, master: Collection<Entry>): List<Entry> = master.mapNotNull { entry ->
+        val held = stamps[entry.key]
+        if (entry.json == null) return@mapNotNull entry.takeIf { entry.key in announcements || held == null || held.modified < entry.modified }
+        val named = server == null || try {
+            wire.decodeFromString(Announcement.serializer(), entry.json).appliesTo(server)
+        } catch (e: Exception) {
+            return@mapNotNull null
+        }
+        when {
+            named -> entry
+            entry.key in announcements && entry.modified >= (held?.modified ?: 0) -> Entry(entry.key, entry.modified, null)
+            else -> null
+        }
     }
 
     private fun hash(announcement: Announcement): String = MessageDigest.getInstance("SHA-256")
@@ -160,5 +177,19 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     private fun saveState() {
         stateFile.parent?.createDirectories()
         stateFile.writeText(json.encodeToString(stateSerializer, stamps))
+    }
+
+    private companion object {
+        const val HEADER = """# Announcements: each key below is one announcement. Servers send their saved changes to the proxy and receive the keys
+# that name them in `servers`, so an edit made here or on the proxy ends up where it belongs. An empty file has none yet.
+#
+# "example":
+#   enable: true
+#   delay: 300
+#   repeat: 1800
+#   servers: [ "survival-*" ]
+#   messages: [ "&6Hello, {name}!" ]
+#   commands: []
+"""
     }
 }

@@ -16,7 +16,7 @@ object XaliChatCommand: XCommand(XaliChat.INSTANCE) {
     override val mainCommand = "xalichat"
     override val aliases = ["chat"]
 
-    val commands: List<XCommand> = [
+    private val all: List<XCommand> = [
         MessageCommand,
         ReplyCommand,
         SpamCommand,
@@ -32,6 +32,9 @@ object XaliChatCommand: XCommand(XaliChat.INSTANCE) {
         ViewCommand,
         NicknameCommand,
     ]
+
+    /** [all] minus the nickname command when `nickname.enabled` is off, so its labels stay with other plugins. */
+    val commands: List<XCommand> = all.filter { it !== NicknameCommand || XaliChat.INSTANCE.config.data.nickname.enable }
 
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
