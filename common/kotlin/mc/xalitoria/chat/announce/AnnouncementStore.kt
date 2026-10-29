@@ -180,15 +180,17 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     }
 
     private companion object {
-        const val HEADER = """# Announcements: each key below is one announcement. Servers send their saved changes to the proxy and receive the keys
-# that name them in `servers`, so an edit made here or on the proxy ends up where it belongs. An empty file has none yet.
+        const val HEADER = """# Announcements: each key below is one announcement. With redis on, saved changes are shared with the other servers and
+# the proxy, and each server keeps the keys that name it in `servers`. An empty file has none yet.
 #
 # "example":
 #   enable: true
 #   delay: 300
 #   repeat: 1800
-#   servers: [ "survival-*" ]
-#   messages: [ "&6Hello, {name}!" ]
+#   servers:
+#   - "survival-*"
+#   messages:
+#   - "&6Hello, {name}!"
 #   commands: []
 """
     }
