@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TextComponent
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.Style
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.permissions.Permissible
 import java.lang.reflect.Proxy
@@ -20,6 +21,12 @@ class Colorizer {
 
     /** Every component in the tree, the root first. */
     private fun Component.flatten(): List<Component> = listOf(this) + children().flatMap { it.flatten() }
+
+    /** Every component with the style it ends up with, a child taking its parent's where it sets nothing itself. */
+    private fun Component.styled(inherited: Style = Style.empty()): List<Pair<Component, Style>> {
+        val style = style().merge(inherited, Style.Merge.Strategy.IF_ABSENT_ON_TARGET)
+        return listOf(this to style) + children().flatMap { it.styled(style) }
+    }
 
     @Test
     fun trusted() {
@@ -75,5 +82,36 @@ class Colorizer {
     fun wildcardAllowsEveryTag() {
         val component = Colorizer.parse("{0}", "<click:run_command:/say hi>x</click>", holding("xalichat.format.broadcast.tag.*"))
         assertTrue(component.flatten().any { it.clickEvent() != null })
+    }
+
+    @Test
+    fun colorCodesKeepAnOpenClickEvent() {
+        val component = Colorizer.parse("<click:open_url:'https://discord.gg/myserver'>&b&lClick Here to Join the &9&lDiscord</click>")
+        assertEquals("Click Here to Join the Discord", PLAIN.serialize(component))
+        val parts = component.styled().filter { (it.first as? TextComponent)?.content()?.isNotEmpty() == true }
+        assertEquals(2, parts.size)
+        assertTrue(parts.all { it.second.clickEvent()?.action() == ClickEvent.Action.OPEN_URL })
+        assertEquals(NamedTextColor.AQUA, parts[0].second.color())
+        assertEquals(NamedTextColor.BLUE, parts[1].second.color())
+        assertTrue(parts.all { it.second.decoration(TextDecoration.BOLD) == TextDecoration.State.TRUE })
+    }
+
+    @Test
+    fun hexAndNamedColorsKeepAnOpenClickEvent() {
+        for (colors in listOf("&#ff0000A &#0000ffB", "{#red}A {#blue}B", "&x&f&f&0&0&0&0A &x&0&0&f&f&0&0B")) {
+            val component = Colorizer.parse("<click:open_url:'https://example.com'>$colors</click>")
+            assertEquals("A B", PLAIN.serialize(component), colors)
+            val parts = component.styled().filter { (it.first as? TextComponent)?.content()?.isNotEmpty() == true }
+            assertTrue(parts.all { it.second.clickEvent()?.action() == ClickEvent.Action.OPEN_URL }, colors)
+        }
+    }
+
+    @Test
+    fun aColorCodeEndsEarlierDecorations() {
+        for (code in listOf("&c", "&#ff0000", "{#red}")) {
+            val component = Colorizer.parse("&lbold ${code}plain")
+            val plain = component.styled().first { (it.first as? TextComponent)?.content() == "plain" }
+            assertTrue(plain.second.decoration(TextDecoration.BOLD) != TextDecoration.State.TRUE, code)
+        }
     }
 }

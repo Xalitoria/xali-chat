@@ -15,7 +15,7 @@ optional DiscordSRV 3.0 (Ascension) integration. A small Velocity plugin relays 
 | ProtocolLib | No | Colored tab list, scoreboard and signs, and chat signing (`protocolor` in `config.yml`). |
 | Vault, VaultUnlocked | No | Prefix, suffix and group for the chat format. |
 | DiscordSRV-Ascension | No | Chat bridge to Discord. |
-| Plan | No | Chat and command log on Plan's pages, see [Plan](#plan). |
+| Plan | No | Chat, command and private message log on Plan's pages, see [Plan](#plan). |
 | SuperVanish, PremiumVanish | No | Vanished players are hidden from player lists and private messages. |
 | Essentials | No | Loaded after XaliChat; plain labels it owns are taken over, see [Commands](#commands). |
 
@@ -79,7 +79,7 @@ The descriptors and the library loader come from the [Gradle plugin](../xali-gra
 | `redis` | off | Announcement sharing, see [Redis](#redis). |
 | `nickname` | on | `enable`, `remote` (keep nicknames in the database), `max-length` (16, at most 64), `unique`. |
 | `plan` | on | See [Plan](#plan). |
-| `logging` | database | `chat.database`, `commands.database` and `commands.ignored-commands`. Without the database, entries go to the server log as `CHATLOG|...` and `CMDLOG|...` lines. |
+| `logging` | database | `chat.database`, `commands.database` and `commands.ignored-commands`. Without the database, entries go to the server log as `CHATLOG|...` and `CMDLOG|...` lines. `messages.enable` (off) also records private messages, in the database only. |
 
 `database.type: mariadb` uses MariaDB's driver and `mysql` MySQL's. The MySQL driver cannot read MariaDB 11's metadata,
 so use `mariadb` for a MariaDB server.
@@ -286,6 +286,7 @@ redis:
   password: ""
   ssl: false
   prefix: xalichat # starts every key and channel; change it to keep two networks apart
+  log-pings: true # tell the others when logs were written, see below
 ```
 
 `/xalichat reload` closes the connection and opens a new one from these settings, so a changed host or password needs no
@@ -300,6 +301,15 @@ files, saves are kept and go up when it is back, and the connection is retried (
 Redis holds the hash `<prefix>:announcements` (a key to `<modified>|<json>`, nothing after the bar for a removal) and
 publishes the key to the channel `<prefix>:announcements:changed` whenever a save is taken. Redis decides in a script
 which save of a key is newest, so two saves at once cannot both win.
+
+**Log pings.** With `log-pings` on, a server that has written chat, commands or private messages to the shared database
+publishes a ping to `<prefix>:logs:changed`, at most once a second: the first write starts a one-second window and one
+ping goes out when it ends, so a busy chat sends one a second and never one per message. A ping carries no log, only the
+server's name; it is sent after the batch has reached the database. Every server listening counts the pings it hears and
+its own writes, and Plan's [log page](#the-log-page) uses that count to answer "anything new?" without reading the
+database. Without a connection to Redis (or with `redis.enable` or `log-pings` off) nothing is heard from the others, so
+the page reads the database as before. While connected the count is also bumped every 30 seconds, so a ping that was lost
+costs a late read and not a missing entry.
 
 **Time.** `<modified>` is Redis's clock, not the servers'. A sender says only how long ago it saved (a length of time by
 its own clock), and Redis counts back from its own time. A server whose clock is wrong therefore cannot win or lose a
@@ -406,22 +416,68 @@ only Bukkit and Java types.
 ### Plan
 
 With [Plan](https://github.com/plan-player-analytics/Plan) (Player Analytics) installed and `plan.enable` on (the
-default), XaliChat adds its chat and command log to Plan's pages as an extension called XaliChat. The extension is
-registered at startup, so a change to the `plan` section needs a restart. If Plan reloads, the extension is registered
-again.
+default), XaliChat adds its logs to Plan in two ways: an extension called XaliChat on Plan's player and server pages,
+and a searchable [log page](#the-log-page). Both are registered at startup, so a change to the `plan` section needs a
+restart. If Plan reloads, they are registered again. The Plan classes are touched only when Plan is present, which is an
+optional dependency that loads before XaliChat.
 
 | Where | What |
 |---|---|
 | Player page, *Chat* tab | The number of messages the player sent on this server, and a table of their latest `plan.rows` (25 by default, at most 100). |
 | Player page, *Commands* tab | The same for commands, as logged: without the labels in `logging.commands.ignored-commands`, so private messages and logins never show. |
-| Server page | Messages and commands on this server in the last 24 hours. |
+| Server page | Messages and commands on this server in the last 24 hours, and tables of the latest `plan.rows` of each. |
 
 Only what `logging.chat.database` and `logging.commands.database` write to the database can be shown, so the chat and
 command parts are left out when those are off (or with `plan.chat` or `plan.commands` set to `false`). Plan keeps 50
-characters of a table value, so a long message or command is cut with an ellipsis; `/chatlog` has the full text. Plan
-refreshes a player's data when they join and leave, and the server's now and then. Everyone who may see a player's page
-in Plan sees their chat, so hand out Plan's web permissions accordingly. The Plan classes are touched only when Plan is
-present. Plan is an optional dependency that loads before XaliChat.
+characters of a table value, so a long message or command is cut with an ellipsis. Plan refreshes a player's data when
+they join and leave, and the server's now and then. Everyone who may see a player's page in Plan sees their chat, so hand
+out Plan's web permissions accordingly.
+
+#### The log page
+
+With `plan.page` on (the default) Plan's web server also serves `/xalichat`: chat, commands and private messages as one
+list, oldest at the top and newest at the bottom, from every server that shares the database. It looks like a debug
+console, with times in the browser's own time zone.
+
+| Control | Does |
+|---|---|
+| *Chat*, *Commands*, *Messages* | Show or hide that log. At least one stays on, and the choice is remembered. *Messages* is there for users with `xalichat.messages`, and only while `logging.messages.enable` is on. |
+| Search bar | Text that has to be in a message, command or name. `player:<name or uuid>` keeps one player (a private message matches either end) and `server:<name>` one server. `/xalichat/?q=player:Steve` opens the page with a search. |
+| Right click on an entry | *Focus* clears the search and shows the entries around it, up to 25 on each side on the same server, with *Wider* for more. Typing then looks for matches nearest to it. *Unfocus* or Escape returns to the list. *Copy line* and *Copy text* copy it. |
+
+The list follows new entries while it is not focused (it asks every 3 seconds, and the server answers without touching the
+database while the [Redis pings](#redis) say nothing was written), and older ones load when you scroll to the top. Private messages
+are only recorded with `logging.messages.enable`, on the sender's server.
+
+##### In Plan's plugin pages
+
+The log is also put into XaliChat's card on Plan's plugin pages, below its tabs, by a script (`/xalichat/plan.js`) added to
+Plan's own page. It needs a user with `xalichat.log`; others see no log there.
+
+| Plan page | Shows |
+|---|---|
+| `/player/<uuid>/plugins/<server>` | That player's entries on that server. On the proxy's page, on every server. |
+| `/server/<uuid>/plugins-overview`, and `/server/<uuid>/plugins/XaliChat` (the *XaliChat* entry in the sidebar, in Plan 5.8) | That server's log. A proxy's page shows every server's. |
+| `/network/plugins-overview`, and `/network/plugins/XaliChat` (Plan 5.8) | Every server's log. |
+
+A server is matched to Plan's by name, ignoring case: `database.server-name` in XaliChat's config has to be the name Plan
+has for the server, or the log is not limited to it. On a player's page, a right click on an entry has *Open in
+<server> log*, which goes to that server's plugins page with the entry focused. The same page can be opened with
+`?xalichat=<entry key>` added to its address. Where a server of that name isn't known to Plan, it opens `/xalichat/`
+with the entry focused (`?focus=<key>`).
+
+The pages that Plan's extension fills (the *Chat* and *Commands* tabs) stay as they are, and are all there is without
+this script, for example when Plan has no `PAGE_EXTENSION_RESOURCES`.
+
+The page takes Plan's theme: it reads the theme, sidebar color and night mode this browser has selected in Plan (or
+Plan's defaults) and builds the same colors from them, so it follows a theme or night mode switched in Plan and a custom
+theme saved in the browser. If Plan's theme can't be read it keeps Plan's default look. The kind colors are the ones the
+extension's tables use: light blue for chat and deep purple for commands, plus orange for private messages.
+
+The page uses Plan's login, so it only works with Plan's login switched on. Give a Plan user the web permission
+`xalichat.log` to open it, and `xalichat.messages` to see private messages as well. Plan registers them when XaliChat
+does, and they are not Minecraft permissions. Plan treats a permission as given by any shorter one it starts with, which
+is why the two are not nested. Without a login nobody is let in.
 
 ## Permissions
 
@@ -498,6 +554,9 @@ Sources are under `chat/<submodule>/kotlin`, tests under `chat/<submodule>/test`
 | `chat/common` `AnnouncementSync` | The sync between several participants, including skewed clocks. Needs a real Redis: skipped unless `XALI_REDIS_TEST` is set. |
 | `chat/paper` `Colorizer` | Formatting permissions: what is stripped and what stays. |
 | `chat/paper` `PlanExtension` | Plan's own validation of the extension's annotations, parameters and return types. |
+| `chat/common` `LogPings` | Log pings: one a window however many writes, none to the sender itself, and a plain count without Redis. Needs a real Redis: skipped unless `XALI_REDIS_TEST` is set. |
+| `chat/paper` `RemoteDatabase` | The schema setup on a real MariaDB and MySQL server, each with its own driver. Needs both: skipped unless `XALI_MARIADB_TEST` and `XALI_MYSQL_TEST` (`host:port`, root, empty `xalichat` database, over TLS) and `XALI_DB_PASSWORD` are set. |
+| `chat/paper` `LogSearch` | The merged log search and its focus window, the page's search syntax and framed scope, the pings' short answer, and who the log page lets in. Uses a temporary SQLite database. |
 | `chat/paper` `Filter`, `FilterPermutations` | Tools for the unfinished chat filter. |
 
 ```console

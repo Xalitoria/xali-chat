@@ -10,7 +10,7 @@ plugins {
 
 subprojects {
     group = "mc.xalitoria.chat"
-    version = "0.7.1"
+    version = "0.9.0"
 }
 
 tasks.named("build") {

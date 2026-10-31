@@ -8,6 +8,7 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
+import mc.xalitoria.chat.paper.data.log.MessageLogEntry
 import mc.xalitoria.chat.paper.external.VanishAPI
 import mc.xalitoria.chat.paper.util.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
@@ -21,6 +22,7 @@ import mc.xalitoria.util.serial.toUuidOrNull
 import org.bukkit.command.CommandSender
 import org.bukkit.command.ConsoleCommandSender
 import org.bukkit.entity.Player
+import java.util.UUID
 import mc.xalitoria.chat.paper.data.constants.Permissions
 
 object MessageCommand: XCommand(XaliChat.INSTANCE) {
@@ -84,6 +86,7 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                 sender send msg.console.sender(sender.name, "CONSOLE", message)
                 target send msg.console.target(sender.name, "CONSOLE", message)
                 ReplyTracker.remember(sender, "CONSOLE")
+                record(sender, null, "CONSOLE", message)
                 ReplyTracker.remember(target, sender.name)
                 SpyNotifier.notify(plugin, sender.name, "CONSOLE", message) { it.name == sender.name }
             }
@@ -107,6 +110,7 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                 }
                 ReplyTracker.remember(sender, target.name)
                 ReplyTracker.remember(target, sender.name)
+                record(sender, target.uniqueId, target.name, message)
                 SpyNotifier.notify(plugin, sender.name, target.name, message, subject = sender as? Player) {
                     it.uniqueId == (sender as? Player)?.uniqueId || it.uniqueId == target.uniqueId
                 }
@@ -144,6 +148,7 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                                 val name = ack.name ?: proxyName
                                 sender send msg.player.sender(sender.name, name, message)
                                 ReplyTracker.remember(sender, name)
+                                record(sender, null, name, message)
                                 // Only spies on this server are told here; the receiver's server tells its own.
                                 SpyNotifier.notify(plugin, sender.name, name, message, subject = sender as? Player) {
                                     it.uniqueId == (sender as? Player)?.uniqueId
@@ -159,6 +164,11 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                 }
             }
         }
+    }
+
+    /** Logs a delivered message here, on the sender's server; the receiver's server leaves it out. */
+    private fun record(sender: CommandSender, receiverId: UUID?, receiver: String, message: String) {
+        plugin.logs.message(MessageLogEntry(System.currentTimeMillis(), (sender as? Player)?.uniqueId, sender.name, receiverId, receiver, message))
     }
 
     private val cmdMsg get() = XaliChat.INSTANCE.messageConfig.data.commands

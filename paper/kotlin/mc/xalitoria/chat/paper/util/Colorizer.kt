@@ -1,6 +1,7 @@
 package mc.xalitoria.chat.paper.util
 
 import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.color.componentColors
 import mc.xalitoria.util.message.MINI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextDecoration
@@ -10,20 +11,11 @@ import net.kyori.adventure.text.minimessage.tag.standard.StandardTags
 import org.bukkit.permissions.Permissible
 
 /**
- * Turns `&` codes, `&#RRGGBB` and MiniMessage tags into a [Component]. Only broadcasts and announcements use it;
- * everything else still goes through the shared color parser, which is being reworked.
+ * Turns `&` codes, hex codes, CMI gradients and MiniMessage tags into a [Component]; the color module's
+ * `componentColors()` turns the codes into tags. Only broadcasts and announcements use it; everything else still goes
+ * through the shared color parser, which is being reworked.
  */
 object Colorizer {
-    private val legacy = Regex("&(#[0-9a-f]{6}|[0-9a-fk-or])", RegexOption.IGNORE_CASE)
-
-    private val names = mapOf(
-        '0' to "black", '1' to "dark_blue", '2' to "dark_green", '3' to "dark_aqua",
-        '4' to "dark_red", '5' to "dark_purple", '6' to "gold", '7' to "gray",
-        '8' to "dark_gray", '9' to "blue", 'a' to "green", 'b' to "aqua",
-        'c' to "red", 'd' to "light_purple", 'e' to "yellow", 'f' to "white",
-        'k' to "obfuscated", 'l' to "bold", 'm' to "strikethrough", 'n' to "underlined", 'o' to "italic", 'r' to "reset",
-    )
-
     /** Each tag with the `<prefix>.` permission suffixes that allow it; holding any one of them is enough. */
     private val gated: List<Pair<List<String>, TagResolver>> = listOf(
         listOf("color") to StandardTags.color(),
@@ -59,21 +51,11 @@ object Colorizer {
         sender: Permissible? = null,
         prefix: String = Permissions.FORMAT_BROADCAST,
     ): Component {
-        // A color code also clears earlier decorations, as in legacy chat; <reset> keeps that true here.
-        fun String.mini() = legacy.replace(this) { match ->
-            val code = match.groupValues[1].lowercase()
-            when {
-                code.length > 1 -> "<reset><$code>"
-                code[0] in "klmnor" -> "<${names.getValue(code[0])}>"
-                else -> "<reset><${names.getValue(code[0])}>"
-            }
-        }
-
-        var body = text.mini()
+        var body = text.componentColors()
         if (sender != null) {
             val denied = gated.filter { entry -> entry.first.none { sender.hasPermission("$prefix.$it") } }.map { it.second }
             if (denied.isNotEmpty()) body = MiniMessage.builder().tags(TagResolver.resolver(denied)).build().stripTags(body)
         }
-        return MINI.deserialize(template.mini().replace("{0}", body))
+        return MINI.deserialize(template.componentColors().replace("{0}", body))
     }
 }

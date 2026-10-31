@@ -32,7 +32,7 @@ class LogWriter<T : Any>(
                 debug("Writing a batch of {0} {1} log entries", batch.size, username)
                 write(batch)
             } catch (e: Exception) {
-                logger.fail("Couldn't write ${batch.size} $username log entries to the database; writing them to the text log instead.", e)
+                logger.fail("Couldn't write ${batch.size} $username log entries to the database; handing them to the fallback.", e)
                 batch.forEach(fallback)
             }
         }

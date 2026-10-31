@@ -19,14 +19,18 @@ import kotlinx.coroutines.runBlocking
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.db.repository.ChatLogRepository
+import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import mc.xalitoria.chat.paper.data.db.repository.CommandLogRepository
+import mc.xalitoria.chat.paper.data.db.repository.LogFilter
+import mc.xalitoria.chat.paper.data.db.repository.LogKind
+import mc.xalitoria.chat.paper.data.db.repository.LogRepository
 import java.util.UUID
 import kotlin.time.Duration.Companion.days
 
 /**
  * What XaliChat's chat and command log adds to Plan: per player the number of messages and commands on this server and
- * their latest ones, and per server what was said and run in the last day. Only what `logging.<kind>.database` keeps
- * in the database is there to show.
+ * their latest ones, and per server what was said and run in the last day and the latest of each. Only what
+ * `logging.<kind>.database` keeps in the database is there to show. [LogPage] has all of it, searchable.
  *
  * Plan calls these methods off the server thread, so they read the database directly. Every Plan class is used only
  * from here and [PlanHook], which the plugin touches only once Plan is known to be installed.
@@ -92,6 +96,33 @@ class PlanExtension(private val plugin: XaliChat) : DataExtension {
     @Conditional(COMMANDS)
     @NumberProvider(text = "Commands (24 h)", description = "Run on this server in the last day", iconName = "terminal", iconFamily = Family.SOLID, iconColor = Color.DEEP_PURPLE, priority = 19)
     fun commandsToday(): Long = query(0) { CommandLogRepository.count(null, System.currentTimeMillis() - 1.days.inWholeMilliseconds) }
+
+    @Conditional(CHAT)
+    @TableProvider(tableColor = Color.LIGHT_BLUE)
+    fun latestChatOnServer(): Table {
+        val table = Table.builder()
+            .columnOne("When", Icon(Family.SOLID, "clock", Color.NONE))
+            .columnOneFormat(TableColumnFormat.DATE_SECOND)
+            .columnTwo("Player", Icon(Family.SOLID, "user", Color.NONE))
+            .columnThree("Message", Icon(Family.SOLID, "comment", Color.NONE))
+        latestOnServer(LogKind.CHAT).forEach { table.addRow(it.timestampMillis, it.username, cut(it.text)) }
+        return table.build()
+    }
+
+    @Conditional(COMMANDS)
+    @TableProvider(tableColor = Color.DEEP_PURPLE)
+    fun latestCommandsOnServer(): Table {
+        val table = Table.builder()
+            .columnOne("When", Icon(Family.SOLID, "clock", Color.NONE))
+            .columnOneFormat(TableColumnFormat.DATE_SECOND)
+            .columnTwo("Player", Icon(Family.SOLID, "user", Color.NONE))
+            .columnThree("Command", Icon(Family.SOLID, "terminal", Color.NONE))
+        latestOnServer(LogKind.COMMAND).forEach { table.addRow(it.timestampMillis, it.username, cut("/" + it.text)) }
+        return table.build()
+    }
+
+    private fun latestOnServer(kind: LogKind) =
+        query(emptyList()) { LogRepository.search(LogFilter(setOf(kind), server = DatabaseManager.serverName), rows) }
 
     /** Runs a database read; a failure shows [fallback] on the page and a line in the debug log, never an error in Plan. */
     private fun <T> query(fallback: T, read: suspend () -> T): T = try {

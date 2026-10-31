@@ -6,6 +6,7 @@ import mc.xalitoria.chat.paper.data.config.MainConfig
 import mc.xalitoria.chat.paper.data.db.tables.ChatLogTable
 import mc.xalitoria.chat.paper.data.db.tables.CommandLogTable
 import mc.xalitoria.chat.paper.data.db.tables.IgnoreTable
+import mc.xalitoria.chat.paper.data.db.tables.MessageLogTable
 import mc.xalitoria.chat.paper.data.db.repository.ServerRepository
 import mc.xalitoria.chat.paper.data.db.tables.NicknameTable
 import mc.xalitoria.chat.paper.data.db.tables.ServerTable
@@ -52,15 +53,7 @@ object DatabaseManager {
         val hikariConfig = HikariConfig()
         val type = Type.valueOf(config.type.uppercase())
         when (type) {
-            MARIADB, MYSQL -> {
-                val mysql = config.mysql
-                hikariConfig.jdbcUrl =
-                    "jdbc:mysql://${mysql.host}:${mysql.port}/${mysql.database}?useSSL=${mysql.useSsl}"
-                hikariConfig.username = mysql.username
-                hikariConfig.password = mysql.password
-                hikariConfig.driverClassName = "com.mysql.cj.jdbc.Driver"
-                hikariConfig.maximumPoolSize = mysql.poolSize.coerceAtLeast(1)
-            }
+            MARIADB, MYSQL -> hikariConfig.remote(type == Type.MARIADB, config.mysql)
             else -> hikariConfig.sqlite(plugin.dataFolder.resolve(config.sqlite.filename))
         }
         hikariConfig.poolName = "XaliChat-DB"
@@ -71,6 +64,23 @@ object DatabaseManager {
                 .let(::HikariDataSource)
         } else null
         attach(HikariDataSource(hikariConfig), config, local)
+    }
+
+    /** Connects to a MariaDB server with its own driver or to a MySQL one with Connector/J. */
+    internal fun HikariConfig.remote(mariadb: Boolean, mysql: MainConfig.Database.Mysql) {
+        // Connector/J asks a MariaDB server for INFORMATION_SCHEMA columns it doesn't have ("Unknown column
+        // 'RESERVED'") and fails before the schema is read, so each server gets its own driver.
+        if (mariadb) {
+            jdbcUrl = "jdbc:mariadb://${mysql.host}:${mysql.port}/${mysql.database}" +
+                "?sslMode=${if (mysql.useSsl) "trust" else "disable"}"
+            driverClassName = "org.mariadb.jdbc.Driver"
+        } else {
+            jdbcUrl = "jdbc:mysql://${mysql.host}:${mysql.port}/${mysql.database}?useSSL=${mysql.useSsl}"
+            driverClassName = "com.mysql.cj.jdbc.Driver"
+        }
+        username = mysql.username
+        password = mysql.password
+        maximumPoolSize = mysql.poolSize.coerceAtLeast(1)
     }
 
     private fun HikariConfig.sqlite(file: File) {
@@ -100,7 +110,7 @@ object DatabaseManager {
         // generating the required DDL up front and running it ourselves.
         transaction(database) {
             MigrationUtils.statementsRequiredForDatabaseMigration(
-                *listOfNotNull(ServerTable, IgnoreTable, SettingTable, NicknameTable.takeIf { localNicknames == null }, ChatLogTable, CommandLogTable).toTypedArray(),
+                *listOfNotNull(ServerTable, IgnoreTable, SettingTable, NicknameTable.takeIf { localNicknames == null }, ChatLogTable, CommandLogTable, MessageLogTable).toTypedArray(),
                 withLogs = false,
             ).onEach { debug("Schema statement: {0}", it) }.forEach { exec(it) }
             serverId = ServerRepository.register(config.serverName)

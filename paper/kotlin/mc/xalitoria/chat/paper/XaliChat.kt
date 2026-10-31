@@ -9,6 +9,9 @@ import mc.xalitoria.chat.paper.command.*
 import mc.xalitoria.chat.paper.concurrent.ProxyMessenger
 import mc.xalitoria.chat.paper.data.config.*
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
+import mc.xalitoria.chat.announce.AnnouncementSync
+import mc.xalitoria.chat.logs.LogChanges
+import mc.xalitoria.chat.logs.LogPings
 import mc.xalitoria.chat.paper.data.log.LogService
 import mc.xalitoria.chat.paper.external.VanishAPI
 import mc.xalitoria.chat.paper.external.plan.PlanHook
@@ -46,6 +49,12 @@ class XaliChat : JavaPlugin() {
 
     lateinit var logs: LogService
         private set
+
+    /** What the log page checks to know whether the logs changed; see [LogPings]. */
+    lateinit var logChanges: LogChanges
+        private set
+
+    private var logPings: LogPings? = null
 
     lateinit var interactive: Interactives
         private set
@@ -87,7 +96,9 @@ class XaliChat : JavaPlugin() {
         }
 
         debug("Connected to the {0} database as server '{1}'", config.data.database.type, config.data.database.serverName)
-        logs = LogService(this)
+        logChanges = LogChanges()
+        val pings = LogPings(config.data.redis, config.data.database.serverName, logChanges, PingLog()).also { it.start(); logPings = it }
+        logs = LogService(this, pings::written)
 
         applyPacketListeners()
 
@@ -123,6 +134,7 @@ class XaliChat : JavaPlugin() {
         PROTO.removePacketListeners(this)
         // Flush queued log entries while the database is still open, before canceling the scope they run in.
         if (::logs.isInitialized) runBlocking { logs.close() }
+        logPings?.close()
         discordSrv?.unregister()
         scope.cancel("XaliChat is disabling")
         server.messenger.unregisterOutgoingPluginChannel(this)
@@ -131,6 +143,12 @@ class XaliChat : JavaPlugin() {
         if (::announcements.isInitialized) announcements.close()
         if (server.pluginManager.getPlugin("Plan") != null) try { PlanHook.unhook() } catch (e: NoClassDefFoundError) { }
         DatabaseManager.close()
+    }
+
+    private inner class PingLog : AnnouncementSync.Log {
+        override fun info(message: String) = logger.info(message)
+        override fun warn(message: String, error: Throwable?) = logger.log(java.util.logging.Level.WARNING, message, error)
+        override fun debug(message: String) = debug("{0}", message)
     }
 
     /** Plan can't be ordered against this plugin (it would loop through Essentials), so it is hooked whenever it enables. */

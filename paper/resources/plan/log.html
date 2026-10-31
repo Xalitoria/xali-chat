@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XaliChat log</title>
+<style id="fallback">
+  /* Plan's default theme, for what its own theme can't be read for. The script below replaces these with the real one. */
+  :root {
+    --color-layout-background: #f8f9fc; --color-layout-title: #5a5c69; --color-layout-divider: rgba(0, 0, 0, 0.1);
+    --color-text: #333; --color-secondary: #6c757d; --color-theme: #368F17; --color-themeText: #368F17;
+    --color-cards-background: #ffffff; --color-cards-border: #e3e6f0; --color-cards-header-background: #f8f9fc; --color-cards-header-border: #e3e6f0;
+    --color-forms-input-background: #ffffff; --color-forms-input-border: #dddfeb; --color-forms-input-text: #6e707e;
+    --color-light-blue: #03A9F4; --contrast-color-light-blue: #000000;
+    --color-deep-purple: #673AB7; --contrast-color-deep-purple: #ffffff;
+    --color-orange: #FF9800; --contrast-color-orange: #000000;
+    --color-amber: #FFC107;
+    color: #333;
+  }
+  .night-mode-colors {
+    --color-layout-background: #282a36; --color-layout-title: #eee8d5; --color-layout-divider: #6272a4;
+    --color-text: #eee8d5; --color-theme: #44475a; --color-themeText: #368F17;
+    --color-cards-background: #44475a; --color-cards-border: #6272a4; --color-cards-header-background: #44475a; --color-cards-header-border: #6272a4;
+    --color-forms-input-background: #44475a; --color-forms-input-border: #6272a4; --color-forms-input-text: #eee8d5;
+    color: #eee8d5;
+  }
+</style>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--color-layout-background); color: var(--color-text);
+    font: 14px/1.45 "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .page { height: 100%; padding: 1rem; }
+  .card {
+    display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--color-cards-background);
+    border: 1px solid var(--color-cards-border); border-radius: .35rem; box-shadow: 0 .15rem 1.75rem 0 rgba(58, 59, 69, .15);
+  }
+  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: .75rem 1rem; background: var(--color-cards-header-background); border-bottom: 1px solid var(--color-cards-header-border); }
+  h1 { margin: 0 10px 0 0; font-size: 1rem; font-weight: 700; color: var(--color-layout-title); }
+  a.back { color: var(--color-themeText); text-decoration: none; font-weight: 700; margin-right: 6px; }
+  a.back:hover { text-decoration: underline; }
+  .toggle {
+    font: inherit; font-weight: 700; color: var(--color-secondary); background: transparent; border: 1px solid var(--color-forms-input-border);
+    border-radius: .25rem; padding: 2px 12px; cursor: pointer; user-select: none;
+  }
+  .toggle:hover { border-color: var(--color-secondary); }
+  .toggle.on[data-kind="c"] { background: var(--color-light-blue); border-color: var(--color-light-blue); color: var(--contrast-color-light-blue); }
+  .toggle.on[data-kind="k"] { background: var(--color-deep-purple); border-color: var(--color-deep-purple); color: var(--contrast-color-deep-purple); }
+  .toggle.on[data-kind="m"] { background: var(--color-orange); border-color: var(--color-orange); color: var(--contrast-color-orange); }
+  .search { position: relative; flex: 1 1 260px; min-width: 200px; }
+  .search input {
+    width: 100%; font: inherit; color: var(--color-forms-input-text); background: var(--color-forms-input-background);
+    border: 1px solid var(--color-forms-input-border); border-radius: .25rem; padding: 3px 28px 3px 10px; outline: none;
+  }
+  .search input:focus { border-color: var(--color-themeText); }
+  .search button { position: absolute; right: 2px; top: 0; font: inherit; color: var(--color-secondary); background: none; border: 0; padding: 4px 8px; cursor: pointer; }
+  .search button:hover { color: var(--color-text); }
+  #banner { display: none; align-items: center; gap: 10px; padding: 6px 1rem; background: color-mix(in srgb, var(--color-amber) 22%, transparent); border-bottom: 1px solid var(--color-cards-header-border); }
+  #banner.show { display: flex; }
+  #banner span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; }
+  #banner button { font: inherit; color: var(--color-text); background: none; border: 1px solid var(--color-amber); border-radius: .25rem; padding: 0 10px; cursor: pointer; }
+  #banner button:hover { background: color-mix(in srgb, var(--color-amber) 30%, transparent); }
+  main { flex: 1; overflow-y: auto; padding: 0 0 .75rem; font: 13px/1.5 ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace; }
+  .day { position: sticky; top: 0; z-index: 1; padding: 3px 1rem; background: var(--color-cards-header-background); color: var(--color-layout-title); border-bottom: 1px solid var(--color-cards-header-border); font-family: "Nunito", system-ui, sans-serif; font-weight: 700; font-size: 12px; }
+  .row { display: grid; grid-template-columns: 76px 40px minmax(0, 110px) minmax(0, 170px) minmax(0, 1fr); gap: 0 10px; padding: 1px 1rem; }
+  .row:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  .row.focus { background: color-mix(in srgb, var(--color-amber) 22%, transparent); box-shadow: inset 3px 0 0 var(--color-amber); }
+  .time, .server { color: var(--color-secondary); }
+  .kind { align-self: center; padding: 0 4px; border-radius: .2rem; font-size: 11px; font-weight: 700; line-height: 1.5; text-align: center; }
+  .kind.c { background: var(--color-light-blue); color: var(--contrast-color-light-blue); }
+  .kind.k { background: var(--color-deep-purple); color: var(--contrast-color-deep-purple); }
+  .kind.m { background: var(--color-orange); color: var(--contrast-color-orange); }
+  .server, .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note { padding: 8px 1rem; color: var(--color-secondary); }
+  button.older { margin: 4px 1rem; font: inherit; color: var(--color-secondary); background: none; border: 1px dashed var(--color-cards-border); border-radius: .25rem; padding: 2px 10px; cursor: pointer; }
+  button.older:hover { color: var(--color-text); border-color: var(--color-secondary); }
+  footer { display: flex; gap: 14px; padding: 5px 1rem; background: var(--color-cards-header-background); border-top: 1px solid var(--color-cards-header-border); color: var(--color-secondary); font-size: 12px; }
+  #live::before { content: "\25CF  "; color: #1CC88A; }
+  #live.off::before { color: var(--color-secondary); }
+  #menu { position: fixed; display: none; z-index: 10; min-width: 150px; padding: 3px 0; background: var(--color-cards-background); border: 1px solid var(--color-cards-border); border-radius: .35rem; box-shadow: 0 .15rem 1.75rem 0 rgba(58, 59, 69, .3); }
+  #menu.show { display: block; }
+  #menu div { padding: 4px 14px; cursor: pointer; }
+  #menu div:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+  .embed .page { padding: 0; }
+  .embed .card { border: 0; border-radius: 0; box-shadow: none; }
+  .embed h1, .embed a.back { display: none; }
+  .embed header { padding: .5rem .75rem; }
+  @media (max-width: 700px) { .row { grid-template-columns: 64px 36px minmax(0, 1fr); } .server, .who { display: none; } }
+</style>
+</head>
+<body>
+<script>try { document.body.classList.toggle("night-mode-colors", (function () { var s = localStorage.getItem("theme.nightMode"); return s && s !== "undefined" ? s !== "false" : matchMedia("(prefers-color-scheme: dark)").matches; })()); } catch (e) {}</script>
+<div class="page"><div class="card">
+<header>
+  <a class="back" id="back" href="/" title="Back to Plan">&larr; Plan</a>
+  <h1>XaliChat log</h1>
+  <span id="toggles"></span>
+  <div class="search">
+    <input id="q" type="text" maxlength="200" autocomplete="off" spellcheck="false" placeholder="search  &middot;  player:name  server:name">
+    <button id="clear" title="Clear" aria-label="Clear">&#x2715;</button>
+  </div>
+</header>
+<div id="banner"><span id="bannerText"></span><button id="wider">Wider</button><button id="unfocus">Unfocus</button></div>
+<main id="list"></main>
+<footer><span id="live">live</span><span id="count"></span><span id="zone"></span></footer>
+</div></div>
+<div id="menu"></div>
+<script id="plan-theme">
+"use strict";
+/*
+ * Plan's own theme, rebuilt the way its web app does it (react/dashboard ThemeStyleCss): the theme Plan has selected for
+ * this browser (theme.name, theme.color, theme.nightMode in localStorage, else Plan's defaults) is fetched from Plan,
+ * turned into the same --color-* and --contrast-color-* variables, and night mode is the same body class. A theme or a
+ * night mode switched in Plan applies here too. Without it the page keeps the default look of the fallback style above.
+ */
+const PlanTheme = (() => {
+  const store = key => { try { const v = localStorage.getItem(key); return v && v !== "undefined" ? v : null; } catch (e) { return null; } };
+  const cache = {};
+  let latest = 0;
+
+  // Any CSS color as [r, g, b, a], as the browser reads it.
+  const probe = document.createElement("span");
+  probe.style.display = "none";
+  function rgba(color) {
+    probe.style.color = "";
+    probe.style.color = color;
+    if (!probe.style.color) return null;
+    document.body.appendChild(probe);
+    const m = getComputedStyle(probe).color.match(/[\d.]+/g);
+    probe.remove();
+    return m && m.length >= 3 ? [+m[0], +m[1], +m[2], m.length > 3 ? +m[3] : 1] : null;
+  }
+  function contrast(color) {
+    const v = rgba(color);
+    return v ? ((0.299 * v[0] + 0.587 * v[1] + 0.114 * v[2]) / 255 < 0.5 ? "#ffffff" : "#000000") : null;
+  }
+  // What Plan shows a color as in night mode: 70 % of the saturation and 95 % of the lightness.
+  function desaturate(color) {
+    const v = rgba(color);
+    if (!v) return color;
+    const r = v[0] / 255, g = v[1] / 255, b = v[2] / 255, max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    let h = 0, s = 0;
+    if (max !== min) {
+      const d = max - min;
+      s = Math.max(0, Math.min(1, l > 0.5 ? d / (2 - max - min) : d / (max + min)));
+      h = (max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4) / 6;
+    }
+    return "hsla(" + h * 360 + ", " + s * 100 * 0.7 + "%, " + l * 95 + "%, " + v[3] + ")";
+  }
+  // {a: {bCd: x}} as {"a-b-cd": x}; arrays are left out.
+  function flatten(obj, prefix) {
+    return Object.entries(obj).reduce((acc, [key, value]) => {
+      const name = prefix ? prefix + "-" + key : key;
+      if (value !== null && typeof value === "object" && !Array.isArray(value)) Object.assign(acc, flatten(value, name));
+      else if (!Array.isArray(value)) acc[name.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()] = value;
+      return acc;
+    }, {});
+  }
+  const reference = value => typeof value === "string" && value.startsWith("var(--color-") ? value.replace("var(--color-", "").replace(")", "") : null;
+
+  function generate(theme, color) {
+    const day = [], night = [];
+    const add = (name, value, list) => {
+      list.push("--color-" + name + ": " + value);
+      const c = contrast(value);
+      if (c) list.push("--contrast-color-" + name + ": " + c);
+    };
+    for (const [name, value] of Object.entries(theme.colors || {})) { add(name, value, day); add(name, desaturate(value), night); }
+    for (const [name, value] of Object.entries(theme.nightColors || {})) { add(name, value, day); add(name, value, night); }
+    const useCases = cases => {
+      const flat = flatten(cases || {}, "");
+      Object.assign(flat, (cases || {}).referenceColors);
+      if (color && color !== "theme") flat.theme = "var(--color-" + color + ")";
+      return flat;
+    };
+    const nightCases = useCases(theme.nightModeUseCases);
+    for (const [key, value] of Object.entries(nightCases)) {
+      const ref = reference(value);
+      if (ref) night.push("--color-" + key + ": var(--color-" + ref + ")", "--contrast-color-" + key + ": var(--contrast-color-" + ref + ")");
+    }
+    for (const [key, value] of Object.entries(useCases(theme.useCases))) {
+      const ref = reference(value);
+      if (!ref) continue;
+      const pair = ["--color-" + key + ": var(--color-" + ref + ")", "--contrast-color-" + key + ": var(--contrast-color-" + ref + ")"];
+      day.push(...pair);
+      if (!(key in nightCases)) night.push(...pair);
+    }
+    return ":root {\n  " + day.join(";\n  ") + ";\n  color: var(--color-text-light);\n}\n.night-mode-colors {\n  " + night.join(";\n  ") + ";\n  color: var(--color-night-text);\n}";
+  }
+
+  async function load(url) {
+    const res = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+    if (!res.ok) throw new Error(url + " answered " + res.status);
+    return res.json();
+  }
+
+  async function apply() {
+    const mine = ++latest;
+    let metadata = null;
+    try { metadata = await load("/v1/metadata"); } catch (e) { /* Plan's defaults below */ }
+    const stored = store("theme.nightMode");
+    const night = stored !== null ? stored !== "false" : metadata ? !!metadata.defaultNightMode : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.body.classList.toggle("night-mode-colors", night);
+
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem("locally-stored-themes") || "[]"); } catch (e) { /* none */ }
+    let name = store("theme.name") || (metadata && metadata.defaultTheme) || "default";
+    if (metadata && Array.isArray(metadata.availableThemes) && !metadata.availableThemes.includes(name) && !local.includes(name)) name = "default";
+    let theme = null;
+    try {
+      if (local.includes(name)) theme = JSON.parse(localStorage.getItem("locally-stored-theme-" + name));
+      if (!theme) theme = cache[name] || (cache[name] = await load("/v1/theme?theme=" + encodeURIComponent(name)));
+      if (theme && !theme.colors && theme.data) theme = theme.data;
+    } catch (e) { return; }
+    if (mine !== latest || !theme || !theme.colors) return;
+
+    // The sidebar color the user picked in Plan, if this theme still offers it.
+    const options = ((night ? theme.nightModeUseCases : theme.useCases) || {}).themeColorOptions || [];
+    const chosen = store("theme.color");
+    let style = document.getElementById("plan-theme-style");
+    if (!style) { style = document.createElement("style"); style.id = "plan-theme-style"; document.head.appendChild(style); }
+    style.textContent = generate(theme, options.includes(chosen) ? chosen : undefined);
+  }
+
+  window.addEventListener("storage", e => { if (e.key === null || e.key.startsWith("theme.") || e.key.startsWith("locally-stored")) apply(); });
+  return { apply, generate };
+})();
+PlanTheme.apply();
+</script>
+<script>
+"use strict";
+const ALLOWED = __KINDS__;
+const NAMES = { c: "Chat", k: "Commands", m: "Messages" };
+const base = location.pathname.replace(/\/?$/, "/");
+// Framed in a Plan page (?embed=1), the list is that player's (?player=) and that server's (?server=) unless searched otherwise.
+const query = new URLSearchParams(location.search);
+const embed = query.get("embed") === "1";
+const scope = { player: query.get("player") || "", server: query.get("server") || "" };
+if (embed) document.body.classList.add("embed");
+const api = base + "log";
+const $ = id => document.getElementById(id);
+const list = $("list"), input = $("q"), menu = $("menu");
+
+let enabled = new Set();
+try { enabled = new Set(JSON.parse(localStorage.getItem("xalichat.kinds") || "null") || ["c", "k"]); } catch (e) { enabled = new Set(["c", "k"]); }
+enabled = new Set([...enabled].filter(k => ALLOWED.includes(k)));
+if (enabled.size === 0) enabled = new Set(ALLOWED);
+
+let rows = [];          // oldest first
+let more = false;       // older entries exist
+let focusKey = query.get("focus");
+let version = null;     // what the server said the logs had reached when it answered, so an unchanged tail can be answered with nothing
+let radius = 25;
+let seq = 0, loadingOlder = false, menuRow = null, timer = null;
+
+const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+const fullFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "long" });
+$("zone").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+$("back").href = new URL("../", location.origin + base).href;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function line(r) {
+  const who = r.target ? r.user + " -> " + r.target : r.user;
+  return timeFmt.format(r.ts) + "  " + (r.server ? r.server + "  " : "") + who + ": " + shown(r);
+}
+function shown(r) { return r.kind === "k" ? "/" + r.text : r.text; }
+
+function buildToggles() {
+  const box = $("toggles");
+  for (const k of ALLOWED) {
+    const b = el("button", "toggle", NAMES[k]);
+    b.dataset.kind = k;
+    b.classList.toggle("on", enabled.has(k));
+    b.onclick = () => {
+      if (enabled.has(k)) { if (enabled.size > 1) enabled.delete(k); } else enabled.add(k);
+      document.querySelectorAll(".toggle").forEach(t => t.classList.toggle("on", enabled.has(t.dataset.kind)));
+      localStorage.setItem("xalichat.kinds", JSON.stringify([...enabled]));
+      reload();
+    };
+    box.appendChild(b);
+    box.appendChild(document.createTextNode(" "));
+  }
+}
+
+function params(extra) {
+  const p = new URLSearchParams({ kinds: [...enabled].join(""), q: input.value.trim() });
+  if (scope.player) p.set("scopePlayer", scope.player);
+  if (scope.server) p.set("scopeServer", scope.server);
+  for (const k in extra) p.set(k, extra[k]);
+  return p;
+}
+
+async function get(extra) {
+  const res = await fetch(api + "?" + params(extra), { credentials: "same-origin", cache: "no-store" });
+  if (!res.ok) throw new Error(res.status === 403 ? "You are not allowed to see this." : "The server answered " + res.status + ".");
+  return res.json();
+}
+
+function render(keepScroll) {
+  const before = list.scrollHeight - list.scrollTop;
+  list.textContent = "";
+  if (more && !focusKey) {
+    const b = el("button", "older", "load older");
+    b.onclick = loadOlder;
+    list.appendChild(b);
+  }
+  if (rows.length === 0) list.appendChild(el("div", "note", "Nothing matches."));
+  let day = "";
+  for (const r of rows) {
+    const d = dayFmt.format(r.ts);
+    if (d !== day) { day = d; list.appendChild(el("div", "day", d)); }
+    const row = el("div", "row " + r.kind + (r.key === focusKey ? " focus" : ""));
+    row.title = fullFmt.format(r.ts);
+    row.dataset.key = r.key;
+    row.append(el("span", "time", timeFmt.format(r.ts)), el("span", "kind " + r.kind, r.kind === "c" ? "CHT" : r.kind === "k" ? "CMD" : "MSG"),
+      el("span", "server", r.server || ""), el("span", "who", r.target ? r.user + " → " + r.target : r.user), el("span", "text", shown(r)));
+    list.appendChild(row);
+  }
+  $("count").textContent = rows.length + (rows.length === 1 ? " entry" : " entries") + (more && !focusKey ? "+" : "");
+  if (keepScroll) list.scrollTop = list.scrollHeight - before;
+}
+
+function showBanner() {
+  const r = rows.find(x => x.key === focusKey);
+  $("banner").classList.toggle("show", !!focusKey);
+  if (r) $("bannerText").textContent = "Focused: " + line(r) + "   (" + radius + " either side)";
+  $("live").classList.toggle("off", !!focusKey);
+}
+
+async function reload() {
+  const mine = ++seq;
+  try {
+    const data = focusKey ? await get({ around: focusKey, radius }) : await get({ limit: 150 });
+    if (mine !== seq) return;
+    rows = data.entries; more = !!data.more;
+    if (data.version !== undefined) version = data.version;
+    // A focus that is gone, or never was, is dropped for the plain list.
+    if (focusKey && !rows.some(r => r.key === focusKey)) { focusKey = null; return reload(); }
+    render(false);
+    showBanner();
+    if (focusKey) {
+      const f = list.querySelector(".row.focus");
+      if (f) f.scrollIntoView({ block: "center" });
+    } else list.scrollTop = list.scrollHeight;
+  } catch (e) {
+    if (mine === seq) { rows = []; more = false; render(false); list.prepend(el("div", "note", e.message)); }
+  }
+}
+
+async function loadOlder() {
+  if (loadingOlder || !more || focusKey || rows.length === 0) return;
+  loadingOlder = true;
+  const mine = seq;
+  try {
+    const data = await get({ limit: 150, before: rows[0].ts });
+    if (mine !== seq) return;
+    const known = new Set(rows.map(r => r.key));
+    const fresh = data.entries.filter(r => !known.has(r.key));
+    // Only one millisecond is left to show: step past it rather than ask for it forever.
+    more = !!data.more && fresh.length > 0;
+    rows = fresh.concat(rows);
+    render(true);
+  } catch (e) { /* the next scroll tries again */ } finally { loadingOlder = false; }
+}
+
+async function tail() {
+  if (focusKey || document.hidden || rows.length === 0) return;
+  const mine = seq;
+  try {
+    const data = await get(version === null ? { limit: 150, after: rows[rows.length - 1].ts } : { limit: 150, after: rows[rows.length - 1].ts, v: version });
+    if (mine !== seq || focusKey) return;
+    if (data.version !== undefined) version = data.version;
+    const known = new Set(rows.map(r => r.key));
+    const fresh = data.entries.filter(r => !known.has(r.key));
+    if (fresh.length === 0) return;
+    const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+    rows = rows.concat(fresh);
+    if (rows.length > 2000) { rows = rows.slice(rows.length - 1500); more = true; }
+    render(false);
+    if (atBottom) list.scrollTop = list.scrollHeight;
+  } catch (e) { /* keep what is shown */ }
+}
+
+function focusOn(key) {
+  focusKey = key;
+  radius = 25;
+  input.value = "";
+  reload();
+}
+function unfocus() { if (focusKey) { focusKey = null; reload(); } }
+
+function openMenu(e) {
+  const row = e.target.closest(".row");
+  if (!row) { closeMenu(); return; }
+  e.preventDefault();
+  menuRow = rows.find(r => r.key === row.dataset.key);
+  menu.textContent = "";
+  const item = (label, fn) => { const d = el("div", "", label); d.onclick = () => { closeMenu(); fn(); }; menu.appendChild(d); };
+  if (menuRow.key === focusKey) item("Unfocus", unfocus); else item("Focus", () => focusOn(menuRow.key));
+  const r = menuRow;
+  if (embed && menuRow.server && (scope.player || menuRow.server !== scope.server)) {
+    const open = menuRow;
+    item("Open in " + open.server + " log", () => parent.postMessage({ xalichat: "open", key: open.key, server: open.server }, location.origin));
+  }
+  item("Copy line", () => navigator.clipboard && navigator.clipboard.writeText(line(r)));
+  item("Copy text", () => navigator.clipboard && navigator.clipboard.writeText(shown(r)));
+  menu.classList.add("show");
+  menu.style.left = Math.min(e.clientX, innerWidth - menu.offsetWidth - 4) + "px";
+  menu.style.top = Math.min(e.clientY, innerHeight - menu.offsetHeight - 4) + "px";
+}
+function closeMenu() { menu.classList.remove("show"); }
+
+list.addEventListener("contextmenu", openMenu);
+document.addEventListener("click", closeMenu);
+document.addEventListener("scroll", closeMenu, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") { if (menu.classList.contains("show")) closeMenu(); else unfocus(); } });
+list.addEventListener("scroll", () => { if (list.scrollTop < 60) loadOlder(); });
+
+input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(reload, 250); });
+$("clear").onclick = () => { input.value = ""; input.focus(); reload(); };
+$("unfocus").onclick = unfocus;
+$("wider").onclick = () => { radius = Math.min(radius + 25, 200); reload(); };
+
+input.value = new URLSearchParams(location.search).get("q") || "";
+buildToggles();
+reload();
+setInterval(tail, 3000);
+</script>
+</body>
+</html>

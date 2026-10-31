@@ -38,7 +38,8 @@ data class MainConfig(
     val plan: Plan = Plan(),
     @YamlComment(
         "Where chat and commands are recorded: the database when 'database' is true, otherwise (or",
-        "if a write fails) the server log as CHATLOG|... / CMDLOG|... lines.",
+        "if a write fails) the server log as CHATLOG|... / CMDLOG|... lines. Private messages are only",
+        "ever recorded in the database, and only with messages.enable.",
     )
     val logging: Logging = Logging(),
 ) {
@@ -46,10 +47,17 @@ data class MainConfig(
     data class Logging(
         val chat: Chat = Chat(),
         val commands: Commands = Commands(),
+        val messages: Messages = Messages(),
     ) {
         @Serializable
         data class Chat(
             val database: Boolean = true,
+        )
+
+        @Serializable
+        data class Messages(
+            @YamlComment("Records /msg and /reply between players (and the console) in the database, on the sender's server. Off by default: it stores private conversations.")
+            val enable: Boolean = false,
         )
 
         @Serializable
@@ -78,6 +86,8 @@ data class MainConfig(
         val commands: Boolean = true,
         @YamlComment("How many of a player's latest messages and commands each table lists. Plan shows 50 characters of each.")
         val rows: Int = 25,
+        @YamlComment("Serves the searchable log page at /xalichat on Plan's web server. Plan's login must be on, and a Plan user needs the xalichat.log permission.")
+        val page: Boolean = true,
     )
 
     @Serializable
