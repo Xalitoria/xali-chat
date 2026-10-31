@@ -1,12 +1,13 @@
+import mc.xalitoria.gradle.sibling
 plugins {
     kotlin("plugin.serialization")
     alias(libs.plugins.shadow)
 }
 
 dependencies {
-    implementation(project(":chat:common"))
+    implementation(sibling("common"))
     // Other plugins use the API's classes from this jar, whether or not the plugin itself does.
-    implementation(project(":chat:api"))
+    implementation(sibling("api"))
 
     // Libraries the server downloads when the plugin loads (see loader.json); nothing declared here is shaded.
     api(libs.xalicraft.util)
@@ -30,7 +31,7 @@ tasks {
     jar { enabled = false }
     shadowJar {
         minimize {
-            exclude(project(":chat:api"))
+            exclude(project(sibling("api").path))
         }
     }
     build {

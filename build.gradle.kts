@@ -2,11 +2,13 @@ import mc.xalitoria.gradle.Load
 import mc.xalitoria.gradle.RelativeLoad
 
 plugins {
+    kotlin("jvm")
+    id("mc.xalitoria.conventions")
     id("mc.xalitoria.minecraft")
 }
 
 subprojects {
-    group = "mc.xalitoria"
+    group = "mc.xalitoria.chat"
     version = "0.7.1"
 }
 

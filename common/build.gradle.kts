@@ -1,5 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import xalitoria.repo.kotlinx
+import mc.xalitoria.gradle.repo.kotlinx
 
 plugins {
     kotlin("plugin.serialization")

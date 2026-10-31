@@ -1,4 +1,5 @@
-import xalitoria.repo.kotlinx
+import mc.xalitoria.gradle.sibling
+import mc.xalitoria.gradle.repo.kotlinx
 
 plugins {
     kotlin("plugin.serialization")
@@ -8,7 +9,7 @@ plugins {
 // Declared with api, so the proxy downloads them when the plugin loads instead of the jar carrying them (:chat:common
 // leaves kaml and kotlinx.serialization to whoever packages it).
 dependencies {
-    implementation(project(":chat:common"))
+    implementation(sibling("common"))
     api(libs.kaml)
     api(libs.jedis)
     api(kotlinx("serialization-json"))
