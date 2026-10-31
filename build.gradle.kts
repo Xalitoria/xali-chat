@@ -5,6 +5,7 @@ plugins {
     kotlin("jvm")
     id("mc.xalitoria.conventions")
     id("mc.xalitoria.minecraft")
+    alias(libs.plugins.shadow) apply false
 }
 
 subprojects {
