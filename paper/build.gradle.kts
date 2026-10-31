@@ -17,11 +17,13 @@ dependencies {
     compileOnly(libs.paper.api)
     compileOnly(libs.discordsrv)
     compileOnly(libs.placeholderapi)
+    compileOnly(libs.plan)
     compileOnly(libs.protocollib)
     compileOnly(libs.vanish.api)
     compileOnly(libs.vaultunlocked)
     testImplementation(libs.xalicraft.util)
     testImplementation(libs.paper.api)
+    testImplementation(libs.plan)
 }
 
 tasks {

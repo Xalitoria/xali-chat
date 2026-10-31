@@ -1,7 +1,6 @@
 package mc.xalitoria.chat.announce
 
 import com.charleskorn.kaml.YamlComment
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** The `redis` section of the server's and the proxy's `config.yml`: where announcements are shared. */

@@ -7,7 +7,9 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import mc.xalitoria.chat.protocol.Entry
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
@@ -27,9 +29,16 @@ import kotlin.io.path.writeText
  * did parse, held in memory, is written beside it as `<file>.bak` so the working version isn't lost with the edit.
  */
 class AnnouncementStore(private val file: Path, private val stateFile: Path) {
-    /** [hash] is the content as of [modified]; null marks a removal. */
+    /**
+     * [hash] is the content as of [modified]; null marks a removal. A [pending] stamp is a save made here that the
+     * shared set hasn't been told about: [modified] is then when the file was saved by this machine's clock, and
+     * [settle] replaces it with the time the shared set gave it, so that stamps are only ever compared on one clock.
+     */
     @Serializable
-    private class Stamp(val hash: String? = null, val modified: Long = 0)
+    private class Stamp(val hash: String? = null, val modified: Long = 0, val pending: Boolean = false)
+
+    /** A save or removal made here that is waiting to be sent: [saved] is when, by this machine's clock; [json] is null for a removal. */
+    class Pending internal constructor(val key: String, val saved: Long, val json: String?, internal val hash: String?)
 
     private val yaml = Yaml(configuration = YamlConfiguration(strictMode = false, encodeDefaults = true))
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
@@ -73,13 +82,13 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
         loaded.forEach { (key = key, announcement = value) ->
             val hash = hash(announcement)
             if (stamps[key]?.hash != hash) {
-                stamps[key] = Stamp(hash, saved)
+                stamps[key] = Stamp(hash, saved, pending = true)
                 changes += Entry(key, saved, wire.encodeToString(Announcement.serializer(), announcement))
             }
         }
         stamps.toMap().forEach { (key = key, stamp = value) ->
             if (stamp.hash != null && key !in loaded) {
-                stamps[key] = Stamp(null, saved)
+                stamps[key] = Stamp(null, saved, pending = true)
                 changes += Entry(key, saved, null)
             }
         }
@@ -94,6 +103,8 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
      */
     @Synchronized
     fun apply(entry: Entry): Boolean {
+        // A save not yet sent is stamped by this machine's clock; it is sent first, and then compared.
+        if (stamps[entry.key]?.pending == true) return false
         val held = stamps[entry.key]?.modified ?: 0
         if (if (entry.json == null) entry.modified < held else entry.modified <= held) return false
 
@@ -122,13 +133,28 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     /**
      * Writes what is loaded to the file, under [HEADER], and keeps the state in step with it. Comments written by hand
      * are dropped. With nothing loaded the file is the header alone, so there is a file to edit.
+     *
+     * Not if the file has been saved since it was last read or written here: that save is newer than this, and the
+     * next [scan] takes it. Returns whether the file was written.
      */
     @Synchronized
-    fun write() {
+    fun write(): Boolean {
         file.parent?.createDirectories()
+        val seen = lastGood
+        if (seen != null && file.exists() && file.readText() != seen) return false
         val body = if (announcements.isEmpty()) "" else yaml.encodeToString(fileSerializer, announcements)
-        (HEADER + body).also { lastGood = it; file.writeText(it) }
+        val text = HEADER + body
+        // Beside the file and then renamed over it, so that nothing reading it ever sees half of it.
+        val temporary = file.resolveSibling(file.fileName.toString() + ".tmp")
+        temporary.writeText(text)
+        try {
+            Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } catch (e: java.nio.file.AtomicMoveNotSupportedException) {
+            Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING)
+        }
+        lastGood = text
         saveState()
+        return true
     }
 
     /** Keeps the last working text as `<file>.bak`, from what is loaded if the file never parsed. */
@@ -148,6 +174,29 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     /** Every key seen, as it is held now or as the removal that replaced it. */
     @Synchronized
     fun allEntries(): List<Entry> = stamps.keys.mapNotNull { entry(it) }
+
+    /** [allEntries] without the saves still waiting to be sent: those the shared set can be given as they are. */
+    @Synchronized
+    fun settledEntries(): List<Entry> = stamps.filterValues { !it.pending }.keys.mapNotNull { entry(it) }
+
+    /** The saves and removals made here that the shared set hasn't taken yet, oldest key first. */
+    @Synchronized
+    fun pending(): List<Pending> = stamps.filterValues { it.pending }.toSortedMap().map { (key = key, stamp = value) ->
+        val announcement = announcements[key]
+        Pending(key, stamp.modified, if (stamp.hash == null || announcement == null) null else wire.encodeToString(Announcement.serializer(), announcement), stamp.hash)
+    }
+
+    /**
+     * Records what became of [pending]: the shared set stamped it [assigned], or turned it down for holding a newer
+     * copy (0), which [apply] then takes from it. Does nothing for a key saved again in the meantime, which is still pending.
+     */
+    @Synchronized
+    fun settle(pending: Pending, assigned: Long) {
+        val stamp = stamps[pending.key] ?: return
+        if (!stamp.pending || stamp.hash != pending.hash || stamp.modified != pending.saved) return
+        stamps[pending.key] = Stamp(stamp.hash, assigned)
+        saveState()
+    }
 
     /**
      * Which of [master], the shared copies, a holder of [server] should [apply]: those that name it (all of them for

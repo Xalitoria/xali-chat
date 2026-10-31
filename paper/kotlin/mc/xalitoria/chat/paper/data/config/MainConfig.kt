@@ -34,6 +34,8 @@ data class MainConfig(
     @YamlComment("Where announcements are shared with the other servers and the proxy. Needs a restart.")
     val redis: RedisSettings = RedisSettings(),
     val nickname: Nickname = Nickname(),
+    @YamlComment("Shows the chat and command log on Plan's player and server pages when Plan is installed. Needs a restart.")
+    val plan: Plan = Plan(),
     @YamlComment(
         "Where chat and commands are recorded: the database when 'database' is true, otherwise (or",
         "if a write fails) the server log as CHATLOG|... / CMDLOG|... lines.",
@@ -66,6 +68,17 @@ data class MainConfig(
             fun isIgnored(label: String): Boolean = label.lowercase() in ignored
         }
     }
+
+    @Serializable
+    data class Plan(
+        val enable: Boolean = true,
+        @YamlComment("Chat messages on the player pages. Needs logging.chat.database.")
+        val chat: Boolean = true,
+        @YamlComment("Commands on the player pages. Needs logging.commands.database.")
+        val commands: Boolean = true,
+        @YamlComment("How many of a player's latest messages and commands each table lists. Plan shows 50 characters of each.")
+        val rows: Int = 25,
+    )
 
     @Serializable
     data class Nickname(

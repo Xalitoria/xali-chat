@@ -54,12 +54,26 @@ class Announcements(private val plugin: XaliChat) {
 
     private var timers: List<Job> = []
 
+    @Volatile
     private var sync: AnnouncementSync? = null
 
-    fun start() {
+    /**
+     * Closes the connection to Redis, if there is one, and opens it again from the settings as they are now. It syncs
+     * by itself once it is up, which is the pull of the latest announcements; until then the file is what runs.
+     */
+    private fun connect() {
+        sync?.close()
         val redis = plugin.config.data.redis
-        if (redis.enable) {
-            sync = AnnouncementSync(redis, store, { plugin.config.data.database.serverName }, ::receive, SyncLog()).also { it.start() }
+        sync = if (redis.enable) AnnouncementSync(redis, store, { plugin.config.data.database.serverName }, ::receive, SyncLog()).also { it.start() }
+        else {
+            plugin.logger.info("Redis is off (redis.enable in config.yml), so announcements stay in this server's $FILE")
+            null
+        }
+    }
+
+    fun start() {
+        connect()
+        if (sync != null) {
             // A first start creates its file from what Redis holds. If that doesn't come, an empty one is better than none.
             if (!path.exists()) plugin.scope.launch(Dispatchers.IO) {
                 delay(FIRST_START_WAIT)
@@ -68,7 +82,8 @@ class Announcements(private val plugin: XaliChat) {
         } else {
             writeIfMissing("Redis is off")
         }
-        reload()
+        // The sync reads Redis by itself once it connects, so only the file is loaded here.
+        load(force = true)
 
         // Editors save in several steps (temp file, rename), hence the wait before reading.
         plugin.scope.launch(Dispatchers.IO) {
@@ -92,14 +107,22 @@ class Announcements(private val plugin: XaliChat) {
     }
 
     /** Creates the file with nothing in it, unless there is one by now. */
-    private fun writeIfMissing(reason: String) = synchronized(this) {
-        if (path.exists()) return
-        store.write()
-        plugin.logger.info("Created an empty $FILE ($reason); announcements will be added to it when they are shared.")
+    private fun writeIfMissing(reason: String) {
+        synchronized(this) {
+            if (path.exists()) return
+            store.write()
+            plugin.logger.info("Created an empty $FILE ($reason); announcements will be added to it when they are shared.")
+        }
     }
 
-    /** Loads the file, restarts every timer and asks Redis what this server should hold: `/xalichat reload`. */
-    fun reload(): Boolean = load(force = true).also { sync?.let { sync -> plugin.scope.launch(Dispatchers.IO) { sync.sync() } } }
+    /**
+     * `/xalichat reload`: reconnects to Redis with the current settings, loads the file and restarts every timer.
+     * The new connection sends what was saved and asks Redis what this server should hold as soon as it is up.
+     */
+    fun reload(): Boolean {
+        connect()
+        return load(force = true)
+    }
 
     /**
      * Reads the file and sends what changed to Redis. A save that changed nothing (comments, our own writes)
@@ -115,7 +138,7 @@ class Announcements(private val plugin: XaliChat) {
         }
         if (force || changes.isNotEmpty()) schedule()
         debug("Loaded {0} announcements, {1} on timers, {2} changed", announcements.size, timers.size, changes.size)
-        sync?.push(changes)
+        sync?.flush()
         return true
     }
 
@@ -142,22 +165,24 @@ class Announcements(private val plugin: XaliChat) {
     fun receive(entries: List<Entry>) {
         plugin.scope.launch(Dispatchers.IO) {
             synchronized(this@Announcements) {
-                val changes = try {
+                try {
                     store.scan()
                 } catch (e: Exception) {
                     plugin.logger.fail("Dropped an update from Redis: $FILE doesn't parse.", e)
                     return@launch
                 }
+                // Anything saved here goes first, so that it isn't compared with what Redis sent on another clock.
+                sync?.flush()
                 val applied = entries.count { store.apply(it) }
                 debug("Applied {0} of {1} entries from Redis", applied, entries.size)
                 // The answer to a first start creates the file, even when it names nothing for this server.
                 val first = !path.exists()
                 if (applied > 0 || first) {
-                    store.write()
+                    // Not written if the file was saved since it was read; that save is picked up next.
+                    if (!store.write()) debug("{0} was saved while Redis's update was being applied; leaving the file as saved", FILE)
                     schedule()
                     if (first) plugin.logger.info("Created $FILE from Redis ($applied announcements for this server).")
                 }
-                sync?.push(changes)
             }
         }
     }

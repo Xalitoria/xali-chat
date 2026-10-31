@@ -15,7 +15,7 @@ class ChatSessionDebugListener(private val instance: XaliChat) : PacketAdapter(
 ) {
     override fun onPacketReceiving(event: PacketEvent) {
         debug(
-            "CHAT_SESSION_UPDATE from {0}: cancelled={1}, online-mode={2}, enforce-secure-profile={3}",
+            "CHAT_SESSION_UPDATE from {0}: canceled={1}, online-mode={2}, enforce-secure-profile={3}",
             event.player.name, event.isCancelled, instance.server.onlineMode,
             instance.server.isEnforcingSecureProfiles,
         )

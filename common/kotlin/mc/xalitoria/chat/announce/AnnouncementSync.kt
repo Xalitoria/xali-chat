@@ -1,5 +1,6 @@
 package mc.xalitoria.chat.announce
 
+import mc.xalitoria.chat.announce.AnnouncementStore.Pending
 import mc.xalitoria.chat.protocol.Entry
 import redis.clients.jedis.DefaultJedisClientConfig
 import redis.clients.jedis.HostAndPort
@@ -15,14 +16,18 @@ import kotlin.concurrent.thread
  * agree on, so nobody has to be online for it to be had.
  *
  * Redis keeps a hash from each key to `<modified>|<json>` (nothing after the bar is a removal) and a channel that is
- * told the key whenever one is taken. A save is taken only if it is newer than the hash's copy, the same rule
- * [AnnouncementStore.apply] has, decided inside Redis so two saves at once can't both win. On connecting (and every
- * few minutes, in case a notification was lost) the holder reads the whole hash and applies what [server] should hold,
- * then offers everything it has to the hash, which heals a hash that was emptied.
+ * told the key whenever one is taken. The newest save of a key wins, and Redis itself says what time a save was: a
+ * sender gives only how long ago it saved (a length of time on its own clock, so nobody's clock being wrong matters)
+ * and Redis counts back from its own. The decision is made inside Redis, so two saves at once can't both win.
+ *
+ * On connecting (and every few minutes, in case a notification was lost) the holder first sends the saves Redis
+ * hasn't taken yet ([flush]), so every stamp is on Redis's clock before any is compared, then reads the whole hash and
+ * applies what [server] should hold, then offers everything it has settled, which heals a hash that was emptied.
  *
  * [server] names whose announcements to take: null, for the proxy, takes all of them. [apply] is called with the
  * entries to apply, which may be none: a first start uses the answer to create its file. Everything here runs on
- * threads of its own, and a Redis that can't be reached is retried until [close].
+ * threads of its own, and a Redis that can't be reached is retried until [close]. A closed sync stays quiet for good;
+ * a new one takes its place when the settings change.
  */
 class AnnouncementSync(
     private val settings: RedisSettings,
@@ -30,6 +35,7 @@ class AnnouncementSync(
     private val server: () -> String?,
     private val apply: (List<Entry>) -> Unit,
     private val log: Log,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : AutoCloseable {
     interface Log {
         fun info(message: String)
@@ -51,46 +57,119 @@ class AnnouncementSync(
     @Volatile
     private var subscription: JedisPubSub? = null
 
+    @Volatile
+    private var connection: Thread? = null
+
+    /** Whether Redis has been reached, or has failed to be, since this started; what decides how loudly a save made without it is logged. */
+    @Volatile
+    private var attempted = false
+
     private val resync = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "xalichat-redis-resync").apply { isDaemon = true }
     }
 
+    /** One flush at a time, so a save can't be sent twice or stamped with an older answer. */
+    private val flushing = Any()
+
     fun start() {
-        thread(isDaemon = true, name = "xalichat-redis") { connectLoop() }
-        resync.scheduleWithFixedDelay({ sync() }, RESYNC_MINUTES, RESYNC_MINUTES, TimeUnit.MINUTES)
+        val login = if (settings.password.isEmpty()) "no password" else "password" + settings.username.let { if (it.isEmpty()) "" else " for $it" }
+        log.info("Sharing announcements through Redis at ${settings.host}:${settings.port} (prefix '${settings.prefix}', ${if (settings.ssl) "TLS" else "no TLS"}, $login)")
+        connection = thread(isDaemon = true, name = "xalichat-redis") { connectLoop() }
+        resync.scheduleWithFixedDelay({ sync(quiet = true) }, RESYNC_MINUTES, RESYNC_MINUTES, TimeUnit.MINUTES)
     }
 
-    /** Reads the shared set again and offers everything held; for a reload. Does nothing while disconnected. */
-    fun sync() {
-        val client = client ?: return
+    /**
+     * Sends the saves and removals the store has made that Redis hasn't taken, each stamped by Redis. One it already
+     * holds a newer copy of is turned down, and that copy is applied in its place. While disconnected they wait, and
+     * go with the connection's own sync. [quiet] leaves the result to the caller.
+     */
+    fun flush(quiet: Boolean = false) {
+        synchronized(flushing) { send(quiet) }
+    }
+
+    private fun send(quiet: Boolean) {
+        if (!running) return
+        val pending = store.pending()
+        if (pending.isEmpty()) return
+        val client = client
+        if (client == null) {
+            val message = "Not connected to Redis; ${describe(pending.map { it.key to (it.json != null) })} will be sent when it is back"
+            if (attempted && !quiet) log.info(message) else log.debug(message)
+            return
+        }
+        val sent = ArrayList<Pending>()
+        val newer = ArrayList<Entry>()
         try {
+            for (save in pending) {
+                // How long ago it was saved by this clock; never from the future, which only a clock set back could say.
+                val age = (clock() - save.saved).coerceAtLeast(0)
+                when (val result = client.eval(ASSIGN, listOf(hash, channel), listOf(save.key, age.toString(), save.json.orEmpty()))) {
+                    is Long -> {
+                        store.settle(save, result)
+                        sent += save
+                    }
+                    else -> {
+                        store.settle(save, 0)
+                        text(result)?.let { decode(save.key, it) }?.let { newer += it }
+                        log.warn("Redis already holds a newer '${save.key}' than the one saved here, so it replaces this one")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            log.warn("Could not send announcements to Redis; they go with the next sync", e)
+        }
+        if (sent.isNotEmpty() && !quiet) log.info("Sent ${describe(sent.map { it.key to (it.json != null) })} to Redis")
+        if (newer.isNotEmpty() && running) apply(store.relevant(server(), newer))
+    }
+
+    /**
+     * Reads the shared set again and offers everything held; for a reload. While disconnected it only says so, as
+     * the connection syncs by itself once it is there. [quiet] is for the regular check, which only speaks up when it
+     * changes something.
+     */
+    fun sync(quiet: Boolean = false) {
+        val client = client
+        if (client == null || !running) {
+            if (running) log.info("Not connected to Redis, so there is nothing to sync yet; this happens by itself once it is back")
+            return
+        }
+        try {
+            // First, so that everything saved here is on Redis's clock before it is compared with what Redis holds.
+            flush(quiet = true)
             val master = client.hgetAll(hash).mapNotNull { (key, value) -> decode(key, value) }
-            apply(store.relevant(server(), master))
-            push(store.allEntries())
+            val wanted = store.relevant(server(), master)
+            apply(wanted)
+            val restored = restore(store.settledEntries())
+            val summary = "Redis holds ${master.count { it.json != null }} announcements, ${wanted.count { it.json != null }} of them for this server" +
+                if (restored > 0) "; gave it $restored it lacked" else ""
+            if (quiet && restored == 0 && wanted.isEmpty()) log.debug("Synced with Redis: $summary") else log.info("Synced with Redis: $summary")
         } catch (e: Exception) {
             log.warn("Could not sync announcements with Redis", e)
         }
     }
 
-    /** Offers [entries] to the shared set, which keeps each that is newer than its copy and tells the others. */
-    fun push(entries: List<Entry>) {
-        val client = client ?: return
-        if (entries.isEmpty()) return
-        try {
-            var kept = 0
-            entries.forEach {
-                val result = client.eval(PUSH, listOf(hash, channel), listOf(it.key, it.modified.toString(), it.json.orEmpty()))
-                if (result == 1L) kept++
-            }
-            log.debug("Offered ${entries.size} announcements to Redis, ${kept} newer than its copy")
-        } catch (e: Exception) {
-            log.warn("Could not send announcements to Redis; they go with the next sync", e)
+    /** Gives Redis the [entries] it lacks or holds older, with the times they already have; returns how many it took. */
+    private fun restore(entries: List<Entry>): Int {
+        val client = client ?: return 0
+        return entries.count {
+            client.eval(RESTORE, listOf(hash, channel), listOf(it.key, it.modified.toString(), it.json.orEmpty())) == 1L
         }
+    }
+
+    /** "2 changed announcements (a, -b)" for the log; a removal has a minus. */
+    private fun describe(changed: List<Pair<String, Boolean>>): String {
+        val keys = changed.take(5).joinToString(", ") { change -> if (change.second) change.first else "-${change.first}" }
+        return "${changed.size} changed announcement${if (changed.size == 1) "" else "s"} ($keys${if (changed.size > 5) ", …" else ""})"
     }
 
     private fun connectLoop() {
         var wait = 1L
+        var down = false
+        var attempt = 0
+        var connected = false
         while (running) {
+            attempt++
+            log.debug("Connecting to Redis at ${settings.host}:${settings.port} (attempt $attempt)")
             val config = DefaultJedisClientConfig.builder()
                 .user(settings.username.ifEmpty { null })
                 .password(settings.password.ifEmpty { null })
@@ -99,18 +178,26 @@ class AnnouncementSync(
             val commands = JedisPooled(address, config.socketTimeoutMillis(5_000).build())
             try {
                 // Subscribing holds its connection, which waits on the channel for as long as it likes.
-                Jedis(address, config.socketTimeoutMillis(0).build()).use { connection ->
+                Jedis(address, config.socketTimeoutMillis(0).build()).use { subscriber ->
                     val pubsub = object : JedisPubSub() {
                         override fun onSubscribe(channel: String, subscribedChannels: Int) {
+                            // Closed while connecting: this one is not wanted any more.
+                            if (!running) return unsubscribe()
                             // After subscribing, so that nothing saved in between is missed.
                             client = commands
                             wait = 1
-                            log.info("Connected to Redis at ${settings.host}:${settings.port}")
+                            down = false
+                            attempt = 0
+                            connected = true
+                            attempted = true
+                            log.info("Connected to Redis at ${settings.host}:${settings.port}, listening on $channel")
                             sync()
                         }
 
                         override fun onMessage(channel: String, message: String) {
+                            if (!running) return
                             try {
+                                log.debug("Redis says '$message' changed")
                                 val master = listOfNotNull(commands.hget(hash, message)?.let { decode(message, it) })
                                 apply(store.relevant(server(), master))
                             } catch (e: Exception) {
@@ -118,11 +205,24 @@ class AnnouncementSync(
                             }
                         }
                     }
+                    if (!running) return
                     subscription = pubsub
-                    connection.subscribe(pubsub, channel)
+                    subscriber.subscribe(pubsub, channel)
                 }
             } catch (e: Exception) {
-                if (running) log.warn("Redis at ${settings.host}:${settings.port} is not reachable; trying again in ${wait}s", e)
+                if (running) {
+                    // An outage is worth one warning; the retries after it are only noise until it ends.
+                    val where = "${settings.host}:${settings.port}"
+                    val why = generateSequence<Throwable>(e) { it.cause }.last().message ?: e.javaClass.simpleName
+                    val rejected = Regex("WRONGPASS|NOAUTH|NOPERM|invalid username-password|AUTH", RegexOption.IGNORE_CASE).containsMatchIn(why)
+                    if (connected) log.warn("Lost the connection to Redis at $where ($why); reconnecting, and quietly after that until it is back")
+                    else if (down) log.debug("Redis at $where is still not reachable ($why); trying again in ${wait}s")
+                    else if (rejected) log.warn("Redis at $where turned down the login ($why); check redis.username and redis.password. Trying again in ${wait}s, and quietly after that")
+                    else log.warn("Redis at $where is not reachable ($why); trying again in ${wait}s, and quietly after that until it is back")
+                    down = true
+                    connected = false
+                    attempted = true
+                }
             } finally {
                 client = null
                 subscription = null
@@ -139,16 +239,45 @@ class AnnouncementSync(
     }
 
     override fun close() {
+        if (running && client != null) log.info("Disconnecting from Redis")
         running = false
         resync.shutdownNow()
         runCatching { subscription?.unsubscribe() }
+        connection?.interrupt()
+    }
+
+    private fun text(reply: Any?): String? = when (reply) {
+        is String -> reply
+        is ByteArray -> String(reply)
+        else -> null
     }
 
     companion object {
         private const val RESYNC_MINUTES = 5L
 
-        /** Takes a newer save, or a removal as new as the copy, and tells the channel. Returns 1 when it was taken. */
-        private const val PUSH = """
+        /**
+         * Takes a save that happened ARGV[2] milliseconds ago by the sender's clock, counted back from Redis's own,
+         * if that is newer than the copy held (a removal also if just as new), and tells the channel. Returns the
+         * time it was given, or the copy held when that is newer. The same rule as [AnnouncementStore.apply].
+         */
+        private const val ASSIGN = """
+            local time = redis.call('TIME')
+            local modified = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000) - tonumber(ARGV[2])
+            local current = redis.call('HGET', KEYS[1], ARGV[1])
+            local held = 0
+            if current then held = tonumber(string.match(current, '^(%d+)|')) or 0 end
+            if ARGV[3] == '' then
+                if modified < held then return current end
+            elseif modified <= held then
+                return current
+            end
+            redis.call('HSET', KEYS[1], ARGV[1], modified .. '|' .. ARGV[3])
+            redis.call('PUBLISH', KEYS[2], ARGV[1])
+            return modified
+        """
+
+        /** Takes an entry with the time it already has, if that is newer than the copy held. Returns 1 when it was taken. */
+        private const val RESTORE = """
             local current = redis.call('HGET', KEYS[1], ARGV[1])
             local held = 0
             if current then held = tonumber(string.match(current, '^(%d+)|')) or 0 end

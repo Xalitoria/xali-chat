@@ -1,7 +1,6 @@
 import kotlinx.coroutines.*
 import mc.xalitoria.chat.paper.data.config.FilterConfig
 import mc.xalitoria.util.config.YamlFile
-import kotlin.collections.listOf
 import kotlin.io.path.*
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds

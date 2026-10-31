@@ -11,6 +11,7 @@ import mc.xalitoria.chat.paper.data.config.*
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import mc.xalitoria.chat.paper.data.log.LogService
 import mc.xalitoria.chat.paper.external.VanishAPI
+import mc.xalitoria.chat.paper.external.plan.PlanHook
 import mc.xalitoria.chat.paper.external.protocol.*
 import mc.xalitoria.chat.paper.listener.*
 import mc.xalitoria.chat.paper.modal.announce.Announcements
@@ -18,6 +19,9 @@ import mc.xalitoria.chat.paper.modal.ic.*
 import mc.xalitoria.chat.paper.util.ProxyPlayers
 import mc.xalitoria.util.config.YamlFile
 import mc.xalitoria.util.message.*
+import org.bukkit.event.EventPriority
+import org.bukkit.event.Listener
+import org.bukkit.event.server.PluginEnableEvent
 import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
 
@@ -98,6 +102,7 @@ class XaliChat : JavaPlugin() {
         announcements = Announcements(this).also { it.start() }
 
         VanishAPI.find()
+        hookPlan()
         // What other plugins can ask of this one (see :chat:api).
         server.servicesManager.register(NetworkPlayers::class.java, NetworkPlayers { name, viewer -> ProxyPlayers.isOnline(name, viewer) }, this, ServicePriority.Normal)
         interactive = Interactives(this)
@@ -116,7 +121,7 @@ class XaliChat : JavaPlugin() {
     override fun onDisable() {
         debug("Disabling: flushing logs and closing the database")
         PROTO.removePacketListeners(this)
-        // Flush queued log entries while the database is still open, before cancelling the scope they run in.
+        // Flush queued log entries while the database is still open, before canceling the scope they run in.
         if (::logs.isInitialized) runBlocking { logs.close() }
         discordSrv?.unregister()
         scope.cancel("XaliChat is disabling")
@@ -124,7 +129,22 @@ class XaliChat : JavaPlugin() {
         server.messenger.unregisterIncomingPluginChannel(this)
         server.servicesManager.unregisterAll(this)
         if (::announcements.isInitialized) announcements.close()
+        if (server.pluginManager.getPlugin("Plan") != null) try { PlanHook.unhook() } catch (e: NoClassDefFoundError) { }
         DatabaseManager.close()
+    }
+
+    /** Plan can't be ordered against this plugin (it would loop through Essentials), so it is hooked whenever it enables. */
+    private fun hookPlan() {
+        fun hook() = try { PlanHook.hook(this) } catch (e: NoClassDefFoundError) { debug("Plan's API is not available: {0}", e) }
+        val plan = server.pluginManager.getPlugin("Plan")
+        if (plan != null && plan.isEnabled) {
+            hook()
+            return
+        }
+        server.pluginManager.registerEvent(
+            PluginEnableEvent::class.java, object : Listener {}, EventPriority.MONITOR,
+            { _, event -> if ((event as PluginEnableEvent).plugin.name == "Plan") hook() }, this,
+        )
     }
 
     fun reload() {

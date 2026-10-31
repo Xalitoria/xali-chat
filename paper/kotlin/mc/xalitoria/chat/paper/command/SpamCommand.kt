@@ -49,8 +49,8 @@ object SpamCommand: XCommand(XaliChat.INSTANCE) {
                 }
                 val uuid = if (sender is Player) sender.uniqueId else SERVER_UUID
                 spammer.remove(uuid)
-                val cancelled = activeTasks.remove(uuid)?.also { it.cancel() } != null
-                debug("{0} stopped spam (task was running: {1})", sender.name, cancelled)
+                val canceled = activeTasks.remove(uuid)?.also { it.cancel() } != null
+                debug("{0} stopped spam (task was running: {1})", sender.name, canceled)
                 sender send msg.stop
                 Command.SINGLE_SUCCESS
             }

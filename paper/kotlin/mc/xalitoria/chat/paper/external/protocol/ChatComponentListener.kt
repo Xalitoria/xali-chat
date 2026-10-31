@@ -5,7 +5,6 @@ import com.comphenix.protocol.events.ListenerPriority
 import com.comphenix.protocol.events.PacketAdapter
 import com.comphenix.protocol.events.PacketEvent
 import mc.xalitoria.chat.paper.XaliChat
-import kotlin.time.measureTime
 
 class ChatComponentListener(instance: XaliChat) : PacketAdapter(
     instance,

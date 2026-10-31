@@ -42,5 +42,3 @@ private fun Component.withoutInteractivity(): Component =
  */
 fun String.toSafeComponent(): Component =
     unescapeGradients().applyColors().componentColors().let(MINI::deserialize).withoutInteractivity()
-
-//fun String.toEscapedComponent(): String = unescapeGradients().applyCmiGradients().let(MINI::escapeTags).componentColors()

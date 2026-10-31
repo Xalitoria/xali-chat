@@ -6,6 +6,7 @@ import mc.xalitoria.chat.protocol.Entry
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
 import kotlin.io.path.createTempDirectory
+import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -118,6 +119,7 @@ class AnnouncementStore {
         val store = store()
         save(titan, 1_000)
         val entry = store.scan().single()
+        store.settle(store.pending().single(), 1_000)
 
         assertFalse(store.apply(Entry("rank-titan", 1_000, entry.json)), "same time")
         assertFalse(store.apply(Entry("rank-titan", 500, entry.json!!.replace("yay", "old"))), "older")
@@ -131,6 +133,83 @@ class AnnouncementStore {
         assertTrue(store.announcements.isEmpty())
         assertFalse(store.apply(Entry("rank-titan", 1_999, entry.json)))
         assertTrue(store.apply(Entry("rank-titan", 2_001, entry.json)), "a newer save does")
+    }
+
+    @Test
+    fun aSaveNotYetSentIsNotComparedWithAnotherClock() {
+        val store = store()
+        save(titan, 1_000)
+        val entry = store.scan().single()
+        val pending = store.pending().single()
+        assertEquals(1_000L, pending.saved, "until it is sent it has the time of the file")
+        assertEquals(entry.json, pending.json)
+
+        // Whatever time the shared set claims for its copy, it can't be put over a save that hasn't been sent.
+        assertFalse(store.apply(Entry("rank-titan", 9_999_999, entry.json!!.replace("yay", "new"))))
+        assertEquals(listOf("playsound @a yay"), store.announcements.getValue("rank-titan").commands)
+
+        // Once it is sent the time is the shared set's, and a copy newer than that is taken.
+        store.settle(pending, 5_000)
+        assertTrue(store.pending().isEmpty())
+        assertEquals(5_000L, store.entry("rank-titan")!!.modified)
+        assertFalse(store.apply(Entry("rank-titan", 4_000, entry.json)))
+        assertTrue(store.apply(Entry("rank-titan", 6_000, entry.json.replace("yay", "new"))))
+    }
+
+    @Test
+    fun aSaveTurnedDownGivesWayToTheSharedCopy() {
+        val store = store()
+        save(titan, 1_000)
+        store.scan()
+        store.settle(store.pending().single(), 0)
+        assertTrue(store.apply(Entry("rank-titan", 7_000, """{"messages":["theirs"]}""")), "any copy is newer than a turned-down save")
+        assertEquals(listOf("theirs"), store.announcements.getValue("rank-titan").messages)
+    }
+
+    @Test
+    fun settlingIgnoresAKeySavedAgainInTheMeantime() {
+        val store = store()
+        save(titan, 1_000)
+        store.scan()
+        val sent = store.pending().single()
+        save(titan.replace("yay", "boo"), 2_000)
+        store.scan()
+
+        store.settle(sent, 8_000)
+        val now = store.pending().single()
+        assertEquals(2_000L, now.saved, "the newer save is still waiting")
+        assertEquals(1, store.pending().size)
+    }
+
+    @Test
+    fun pendingSavesSurviveARestartAndSettledOnesDoNot() {
+        save(titan, 1_000)
+        store().scan()
+        val restarted = store()
+        assertEquals(1_000L, restarted.pending().single().saved, "a save sent after the restart is still found")
+        restarted.settle(restarted.pending().single(), 3_000)
+        assertTrue(store().pending().isEmpty())
+        assertEquals(listOf("rank-titan"), store().settledEntries().map { it.key })
+    }
+
+    @Test
+    fun aSaveThatSlipsInBeforeAWriteIsKept() {
+        val store = store()
+        save(titan, 1_000)
+        store.scan()
+        store.settle(store.pending().single(), 1_000)
+        assertTrue(store.apply(Entry("other", 2_000, """{"messages":["remote"]}""")))
+
+        // The file is saved after it was read and before the update is written: that save is newer and stays.
+        save(titan.replace("yay", "boo"), 3_000)
+        assertFalse(store.write(), "the file isn't the one that was read")
+        assertTrue(directory.resolve("announcements.yml").readText().contains("boo"))
+        // It is a save of a file that lacks "other" (an editor's older copy), so that is read as removing it: what was
+        // saved last is what was meant.
+        assertEquals(setOf("rank-titan", "other"), store.scan().map { it.key }.toSet(), "and it is picked up as a save")
+
+        assertTrue(store.write(), "once read, the file can be written again")
+        assertFalse(directory.resolve("announcements.yml").readText().contains("\"other\":"))
     }
 
     @Test

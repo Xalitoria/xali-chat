@@ -3,48 +3,10 @@ package mc.xalitoria.chat.paper.external.protocol
 import com.comphenix.protocol.reflect.StructureModifier
 import com.comphenix.protocol.wrappers.WrappedChatComponent
 import com.comphenix.protocol.wrappers.WrappedDataWatcher
-//import kotlinx.serialization.json.*
-//import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.util.message.*
 import net.kyori.adventure.text.Component
 import org.bukkit.inventory.ItemStack
 import java.util.Optional
-
-/*
-private val debug = mutableSetOf<String>()
-private var reset = 0L
-
-private fun JsonElement.stripFalseValues(): JsonElement = when (this) {
-    is JsonObject -> this
-        .filterValues { !(it is JsonPrimitive && it.booleanOrNull == false) }
-        .mapValues { it.value.stripFalseValues() }
-        .let(::JsonObject)
-    is JsonArray -> JsonArray(map { it.stripFalseValues() })
-    else -> this
-}
-
-internal fun Component.protocolor(): Component {
-    val now = System.currentTimeMillis()
-    if (now > reset) {
-        debug.clear()
-        reset = now + 5000L
-    }
-
-    val before = MINI.serialize(this)
-    val result = before.toComponent()
-
-    if (debug.add(before)) {
-        val after = GCOMP.serialize(result)
-            .let(Json::parseToJsonElement)
-            .stripFalseValues()
-            .let(Json::encodeToString)
-
-        debug("protocolor: {0} -> {1}", before, after)
-    }
-
-    return result
-}
-*/
 
 internal fun Component.protocolor(): Component = MINI.serialize(this).toComponent()
 

@@ -3,10 +3,7 @@ package mc.xalitoria.chat.paper.data.config
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import kotlin.collections.listOf
 import kotlin.text.RegexOption.IGNORE_CASE
-import kotlin.text.ifEmpty
-import kotlin.text.trim
 
 @Serializable
 data class FilterConfig(
@@ -97,8 +94,6 @@ data class FilterConfig(
     }
 
     companion object {
-        private val regexLiteral = Regex("""^\\.+?\\$""")
-        private val regexGroupNonCapt = Regex("\\([a-z]", IGNORE_CASE)
         private val charReplace = mapOf<Char, String>(
             'a' to "[aq4@]",
             'c' to "[ck]",
@@ -121,29 +116,5 @@ data class FilterConfig(
             'y' to "(?:y|ie)",
             'z' to "[zs2]",
         )
-
-        /*
-        private fun MutableCollection<Phrase>.build() = buildMap<String, Regex> {
-            this@build.mapNotNull { match ->
-                match.trim().ifEmpty { null }
-                    ?.lowercase()
-                    ?.replace(regexGroupNonCapt) { "(?:" + it.value.last() }
-            }.forEach { match ->
-                val put = if (match.matches(regexLiteral)) {
-                    match.removeSurrounding("\\")
-                } else {
-                    buildString {
-                        match
-                            // double letters
-                            .replace(Regex("([a-z])\\1")) { it.value.first() + "+" }
-                            // spaces
-                            .replace(" ", "[\\s-+=|_]*?")
-                            .forEach { append(charReplace[it] ?: it) }
-                    }
-                }
-                put(match, Regex(put, IGNORE_CASE))
-            }
-        }
-        */
     }
 }

@@ -201,11 +201,12 @@ class XaliChat(
     private fun applyShared(entries: List<Entry>) {
         synchronized(store) {
             // The file first, so that an edit not picked up yet isn't written over (it goes to Redis as usual).
-            val changes = rescan()
+            rescan()
+            // Anything saved here goes first, so that it isn't compared with what Redis sent on another clock.
+            sync?.flush()
             val applied = entries.count { store.apply(it) }
             if (applied > 0) store.write()
             logger.info("Took {} of {} announcements from Redis", applied, entries.size)
-            sync?.push(changes)
         }
     }
 
@@ -281,7 +282,7 @@ class XaliChat(
                     key.reset() // always, or the next change to any other file in the folder (the state file) ends the watching
                     if (!touched) continue
                     Thread.sleep(300) // editors save in several steps
-                    synchronized(store) { sync?.push(rescan()) }
+                    synchronized(store) { rescan(); sync?.flush() }
                 }
             }
         }

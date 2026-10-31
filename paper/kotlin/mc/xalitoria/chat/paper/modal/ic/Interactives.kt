@@ -37,7 +37,7 @@ class Interactives(private val plugin: XaliChat) : Listener {
 
     private class Snapshot(val title: Component, val size: Int, val slots: Map<Int, ItemStack>)
 
-    /** Holds a snapshot inventory, so clicks in it are recognised and cancelled. */
+    /** Holds a snapshot inventory, so clicks in it are recognized and canceled. */
     private class SnapshotHolder : InventoryHolder {
         lateinit var view: Inventory
         override fun getInventory(): Inventory = view
