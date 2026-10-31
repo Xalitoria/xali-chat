@@ -45,7 +45,7 @@ For a dev server, `./gradlew :chat:paper:runServer` and `./gradlew :chat:velocit
 and Velocity proxy with this plugin installed (see the [root README](../README.md#dev-servers)). The dev proxy still
 needs its `velocity.toml` pointed at the server and `player-info-forwarding-mode = "modern"`.
 
-The descriptors and the library loader come from the [Gradle plugin](../plugin/README.md); the `paper { }` and
+The descriptors and the library loader come from the [Gradle plugin](../xali-gradle/README.md); the `paper { }` and
 `velocity { }` blocks are in `chat/build.gradle.kts`.
 
 ## Configuration
@@ -480,5 +480,5 @@ plugins.
 
 - [XaliFriends](../friends/README.md) — friend system that limits private messages to friends through the gate API
 - [XaliMenu](../menu/README.md) — inventory menus that use the same text formatting
-- [Gradle plugin](../plugin/README.md) — descriptors and library loading
+- [Gradle plugin](../xali-gradle/README.md) — descriptors and library loading
 - [Plan](https://github.com/plan-player-analytics/Plan) — player analytics
