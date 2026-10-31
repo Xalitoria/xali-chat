@@ -2,6 +2,7 @@ import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlConfiguration
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
+import mc.xalitoria.chat.announce.Action
 import mc.xalitoria.chat.announce.Announcement
 import mc.xalitoria.chat.announce.AnnouncementStore
 import mc.xalitoria.chat.announce.AnnouncementSync
@@ -74,7 +75,7 @@ class AnnouncementSync {
         assertTrue(check(), what)
     }
 
-    private fun Holder.messages(key: String) = store.announcements[key]?.messages
+    private fun Holder.messages(key: String) = store.announcements[key]?.actions?.filterIsInstance<Action.Message>()?.flatMap { it.lines }
 
     @Test
     fun serversAndProxyShareTheNewestSave() {
@@ -83,8 +84,8 @@ class AnnouncementSync {
             Holder(null).use { proxy ->
                 proxy.sync.start()
                 eventually("proxy connects") { proxy.file.exists() }
-                proxy.edit("everywhere", Announcement(messages = ["hi"]))
-                proxy.edit("skyblock-only", Announcement(servers = ["skyblock-*"], messages = ["sky"]))
+                proxy.edit("everywhere", Announcement(actions = [Action.Message(["hi"])]))
+                proxy.edit("skyblock-only", Announcement(servers = ["skyblock-*"], actions = [Action.Message(["sky"])]))
 
                 // A server that has never run gets its file from what Redis holds, with no player or proxy message.
                 Holder("survival-1").use { survival ->
@@ -98,18 +99,18 @@ class AnnouncementSync {
                         eventually("skyblock gets both") { skyblock.store.announcements.keys == setOf("everywhere", "skyblock-only") }
 
                         // A save on a server reaches the proxy and a server it names, live.
-                        survival.edit("everywhere", Announcement(messages = ["edited"]))
+                        survival.edit("everywhere", Announcement(actions = [Action.Message(["edited"])]))
                         eventually("proxy sees the edit") { proxy.messages("everywhere") == listOf("edited") }
                         eventually("skyblock sees the edit") { skyblock.messages("everywhere") == listOf("edited") }
 
                         // A save made a while ago, such as one from before the server was down, is older than that.
-                        skyblock.edit("everywhere", Announcement(messages = ["stale"]), ago = 60_000)
+                        skyblock.edit("everywhere", Announcement(actions = [Action.Message(["stale"])]), ago = 60_000)
                         eventually("skyblock takes Redis's copy back") { skyblock.messages("everywhere") == listOf("edited") }
                         assertEquals(listOf("edited"), proxy.messages("everywhere"))
 
                         // Reloading opens a new connection, which works as the old one did.
                         skyblock.reconnect()
-                        proxy.edit("everywhere", Announcement(messages = ["after reload"]))
+                        proxy.edit("everywhere", Announcement(actions = [Action.Message(["after reload"])]))
                         eventually("skyblock hears it on the new connection") { skyblock.messages("everywhere") == listOf("after reload") }
                     }
                 }
@@ -130,10 +131,10 @@ class AnnouncementSync {
                     second.sync.start()
                     eventually("both connect") { first.file.exists() && second.file.exists() }
 
-                    first.edit("news", Announcement(messages = ["first"]))
+                    first.edit("news", Announcement(actions = [Action.Message(["first"])]))
                     eventually("second hears it") { second.messages("news") == listOf("first") }
                     Thread.sleep(200)
-                    second.edit("news", Announcement(messages = ["second"]))
+                    second.edit("news", Announcement(actions = [Action.Message(["second"])]))
                     eventually("first hears the later save") { first.messages("news") == listOf("second") }
 
                     // And the other way round: a clock an hour ahead doesn't win either.
@@ -141,7 +142,7 @@ class AnnouncementSync {
                         ahead.sync.start()
                         eventually("third hears it") { ahead.messages("news") == listOf("second") }
                         Thread.sleep(200)
-                        first.edit("news", Announcement(messages = ["third"]))
+                        first.edit("news", Announcement(actions = [Action.Message(["third"])]))
                         eventually("ahead hears the later save") { ahead.messages("news") == listOf("third") }
                     }
                 }
@@ -157,7 +158,7 @@ class AnnouncementSync {
         try {
             Holder("survival-1").use { waiting ->
                 // Saved with no connection, a while ago: nothing to send it to yet.
-                waiting.edit("offline", Announcement(messages = ["written offline"]), ago = 120_000)
+                waiting.edit("offline", Announcement(actions = [Action.Message(["written offline"])]), ago = 120_000)
                 assertEquals(1, waiting.store.pending().size)
 
                 Holder("survival-2").use { other ->
@@ -186,7 +187,7 @@ class AnnouncementSync {
             Holder("survival-1").use { holder ->
                 holder.sync.start()
                 eventually("connects") { holder.file.exists() }
-                holder.edit("keep", Announcement(messages = ["kept"]))
+                holder.edit("keep", Announcement(actions = [Action.Message(["kept"])]))
                 eventually("it is in Redis") { redis().use { it.hexists("$prefix:announcements", "keep") } }
 
                 redis().use { it.del("$prefix:announcements") }

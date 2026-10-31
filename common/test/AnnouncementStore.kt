@@ -1,4 +1,5 @@
 import kotlinx.serialization.json.Json
+import mc.xalitoria.chat.announce.Action
 import mc.xalitoria.chat.announce.Announcement
 import mc.xalitoria.chat.announce.AnnouncementStore
 import mc.xalitoria.chat.announce.AnnouncementSync
@@ -22,6 +23,9 @@ class AnnouncementStore {
 
     private fun store() = AnnouncementStore(file, state)
 
+    private fun Announcement.lines() = actions.filterIsInstance<Action.Message>().flatMap { it.lines }
+    private fun Announcement.commands() = actions.filterIsInstance<Action.Command>().map { it.command }
+
     /** Saves [text] as the file with [time] as its save time. */
     private fun save(text: String, time: Long) {
         file.writeText(text)
@@ -33,10 +37,9 @@ class AnnouncementStore {
           servers:
           - "skyblock-*"
           - survival-1
-          messages:
-          - "%player_name% purchased Titan rank!"
-          commands:
-          - "playsound @a yay"
+          actions:
+          - message: "%player_name% purchased Titan rank!"
+          - command: "playsound @a yay"
     """.trimIndent()
 
     @Test
@@ -124,7 +127,7 @@ class AnnouncementStore {
         assertFalse(store.apply(Entry("rank-titan", 1_000, entry.json)), "same time")
         assertFalse(store.apply(Entry("rank-titan", 500, entry.json!!.replace("yay", "old"))), "older")
         assertTrue(store.apply(Entry("rank-titan", 2_000, entry.json.replace("yay", "new"))))
-        assertEquals(listOf("playsound @a new"), store.announcements.getValue("rank-titan").commands)
+        assertEquals(listOf("playsound @a new"), store.announcements.getValue("rank-titan").commands())
         assertEquals(2_000L, store.entry("rank-titan")!!.modified)
         assertFalse(store.apply(Entry("rank-titan", 3_000, "not json")), "an entry that doesn't parse is dropped")
 
@@ -146,7 +149,7 @@ class AnnouncementStore {
 
         // Whatever time the shared set claims for its copy, it can't be put over a save that hasn't been sent.
         assertFalse(store.apply(Entry("rank-titan", 9_999_999, entry.json!!.replace("yay", "new"))))
-        assertEquals(listOf("playsound @a yay"), store.announcements.getValue("rank-titan").commands)
+        assertEquals(listOf("playsound @a yay"), store.announcements.getValue("rank-titan").commands())
 
         // Once it is sent the time is the shared set's, and a copy newer than that is taken.
         store.settle(pending, 5_000)
@@ -163,7 +166,7 @@ class AnnouncementStore {
         store.scan()
         store.settle(store.pending().single(), 0)
         assertTrue(store.apply(Entry("rank-titan", 7_000, """{"messages":["theirs"]}""")), "any copy is newer than a turned-down save")
-        assertEquals(listOf("theirs"), store.announcements.getValue("rank-titan").messages)
+        assertEquals(listOf("theirs"), store.announcements.getValue("rank-titan").lines())
     }
 
     @Test
@@ -215,15 +218,15 @@ class AnnouncementStore {
     @Test
     fun wireJsonLeavesOutDefaults() {
         val sender = store()
-        save("\"hi\":\n  messages:\n  - hello\n", 1_000)
+        save("\"hi\":\n  actions:\n  - message: hello\n", 1_000)
         val entry = sender.scan().single()
-        assertEquals("""{"messages":["hello"]}""", entry.json)
+        assertEquals("""{"actions":[{"message":"hello"}]}""", entry.json)
 
         // The receiver fills the defaults back in and sees nothing to report once it has written the file.
         val receiverDir = createTempDirectory("receiver")
         val receiver = AnnouncementStore(receiverDir.resolve("announcements.yml"), receiverDir.resolve("state.json"))
         assertTrue(receiver.apply(entry))
-        assertEquals(Announcement(messages = ["hello"]), receiver.announcements.getValue("hi"))
+        assertEquals(Announcement(actions = [Action.Message(["hello"])]), receiver.announcements.getValue("hi"))
         receiver.write()
         assertTrue(receiver.scan().isEmpty())
     }
@@ -231,7 +234,7 @@ class AnnouncementStore {
     @Test
     fun writtenEntriesAreNotReportedAgain() {
         val store = store()
-        val json = Announcement(messages = ["hi"]).let { json.encodeToString(Announcement.serializer(), it) }
+        val json = Announcement(actions = [Action.Message(["hi"])]).let { json.encodeToString(Announcement.serializer(), it) }
         assertTrue(store.apply(Entry("hello", 9_000, json)))
         store.write()
         assertTrue(store.scan().isEmpty(), "the file now says what the state says")
@@ -249,13 +252,13 @@ class AnnouncementStore {
         save(
             """
             "everywhere":
-              messages: ["a"]
+              actions: [{message: "a"}]
             "skyblock-only":
               servers: ["skyblock-*"]
-              messages: ["b"]
+              actions: [{message: "b"}]
             "survival-only":
               servers: ["survival-1"]
-              messages: ["c"]
+              actions: [{message: "c"}]
             """.trimIndent(),
             1_000,
         )
@@ -276,13 +279,13 @@ class AnnouncementStore {
         save(
             """
             "everywhere":
-              messages: ["a"]
+              actions: [{message: "a"}]
             "skyblock-only":
               servers: ["survival-1"]
-              messages: ["b"]
+              actions: [{message: "b"}]
             "survival-only":
               servers: ["survival-1"]
-              messages: ["c"]
+              actions: [{message: "c"}]
             """.trimIndent(),
             2_000,
         )
@@ -303,10 +306,10 @@ class AnnouncementStore {
     @Test
     fun olderSharedCopyDoesNotReplaceANewerLocalOne() {
         val server = holder()
-        server.take(listOf(Entry("a", 5_000, json.encodeToString(Announcement.serializer(), Announcement(messages = ["new"])))))
-        val old = Entry("a", 1_000, json.encodeToString(Announcement.serializer(), Announcement(messages = ["old"])))
+        server.take(listOf(Entry("a", 5_000, json.encodeToString(Announcement.serializer(), Announcement(actions = [Action.Message(["new"])])))))
+        val old = Entry("a", 1_000, json.encodeToString(Announcement.serializer(), Announcement(actions = [Action.Message(["old"])])))
         assertEquals(0, server.relevant("x", listOf(old)).count { server.apply(it) })
-        assertEquals(listOf("new"), server.announcements.getValue("a").messages)
+        assertEquals(listOf("new"), server.announcements.getValue("a").lines())
     }
 
     @Test
@@ -334,11 +337,11 @@ class AnnouncementStore {
     @Test
     fun anAnswerToAFirstSyncCreatesTheFile() {
         val store = store()
-        assertTrue(store.apply(Entry("a", 5_000, json.encodeToString(Announcement.serializer(), Announcement(messages = ["hi"])))))
+        assertTrue(store.apply(Entry("a", 5_000, json.encodeToString(Announcement.serializer(), Announcement(actions = [Action.Message(["hi"])])))))
         store.write()
         val again = store()
         assertEquals(emptyList(), again.scan().map { it.key }, "what was written is what the state already holds")
-        assertEquals(listOf("hi"), again.announcements.getValue("a").messages)
+        assertEquals(listOf("hi"), again.announcements.getValue("a").lines())
     }
 
     companion object {

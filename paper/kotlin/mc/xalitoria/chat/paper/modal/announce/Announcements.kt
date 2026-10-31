@@ -1,11 +1,14 @@
 package mc.xalitoria.chat.paper.modal.announce
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.completeWith
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import mc.xalitoria.chat.announce.Action
 import mc.xalitoria.chat.announce.Announcement
 import mc.xalitoria.chat.announce.AnnouncementStore
 import mc.xalitoria.chat.announce.AnnouncementSync
@@ -27,11 +30,7 @@ import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
 import kotlin.io.path.exists
 import java.util.UUID
 import java.util.logging.Level
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -173,7 +172,8 @@ class Announcements(private val plugin: XaliChat) {
                 }
                 // Anything saved here goes first, so that it isn't compared with what Redis sent on another clock.
                 sync?.flush()
-                val applied = entries.count { store.apply(it) }
+                val taken = entries.filter { store.apply(it) }
+                val applied = taken.size
                 debug("Applied {0} of {1} entries from Redis", applied, entries.size)
                 // The answer to a first start creates the file, even when it names nothing for this server.
                 val first = !path.exists()
@@ -182,15 +182,17 @@ class Announcements(private val plugin: XaliChat) {
                     if (!store.write()) debug("{0} was saved while Redis's update was being applied; leaving the file as saved", FILE)
                     schedule()
                     if (first) plugin.logger.info("Created $FILE from Redis ($applied announcements for this server).")
+                    // Always, whatever debug says: this changes what the server runs.
+                    else plugin.logger.info("Synced $FILE from Redis: ${AnnouncementSync.summarize(taken)}; reloaded ${timers.size} timed announcement${if (timers.size == 1) "" else "s"}.")
                 }
             }
         }
     }
 
     /**
-     * Plays [key]: its messages to everyone who hasn't muted broadcasts and the console, then its commands in order.
-     * [uuid] and [name] are the player it is about, whom `{uuid}`, `{name}` and `%player_*%` resolve to; without one
-     * each viewer gets their own. [respectServers] skips it when its `servers` list leaves this server out.
+     * Plays [key]: its actions in order. [uuid] and [name] are the player it is about, whom `{uuid}`, `{name}` and
+     * `%player_*%` resolve to, in conditions and commands too; without one each viewer of a message gets their own,
+     * and a condition or command sees no player. [respectServers] skips it when its `servers` list leaves this server out.
      */
     fun announce(key: String, uuid: UUID?, name: String?, respectServers: Boolean) {
         val announcement = announcements[key]
@@ -211,31 +213,33 @@ class Announcements(private val plugin: XaliChat) {
             return PlaceholderAPI.setPlaceholders(player, result)
         }
 
-        debug("Playing announcement {0} for {1}", key, name ?: uuid ?: "everyone")
-        plugin.scope.launch {
-            plugin.runTask { send(false) { viewer -> announcement.messages.map { Colorizer.parse(expand(it, viewer)) } } }
-            for (command in announcement.commands) {
-                val words = command.trim().split(Regex("\\s+"))
-                if (words[0].equals("delay", ignoreCase = true)) {
-                    delay(DURATION.findAll(words.drop(1).joinToString(" ")).fold(Duration.ZERO) { total, match ->
-                        val amount = match.groupValues[1].toLongOrNull() ?: return@fold total
-                        total + when (match.groupValues[2].lowercase()) {
-                            "t" -> (amount * 50).milliseconds
-                            "ms" -> amount.milliseconds
-                            "m" -> amount.minutes
-                            "h" -> amount.hours
-                            "d" -> amount.days
-                            else -> amount.seconds
-                        }
-                    })
-                } else {
-                    plugin.runTask {
-                        debug("Announcement {0} runs: {1}", key, command)
-                        plugin.server.dispatchCommand(plugin.server.consoleSender, expand(command, null).removePrefix("/"))
-                    }
+        // Runs a list in order. Messages and commands are handed to the main thread and not waited for; a condition is
+        // waited for, since what it decides is needed here.
+        suspend fun play(actions: List<Action>) {
+            for (action in actions) when (action) {
+                is Action.Delay -> delay(action.duration)
+                is Action.Message -> plugin.runTask { send(false) { viewer -> action.lines.map { Colorizer.parse(expand(it, viewer)) } } }
+                is Action.Command -> plugin.runTask {
+                    debug("Announcement {0} runs: {1}", key, action.command)
+                    plugin.server.dispatchCommand(plugin.server.consoleSender, expand(action.command, null).removePrefix("/"))
+                }
+                is Action.Condition -> {
+                    val passed = onMainThread { action.matches { expand(it, null) } }
+                    debug("Announcement {0} condition {1} is {2}", key, action.test, passed)
+                    play(if (passed) action.yes else action.no)
                 }
             }
         }
+
+        debug("Playing announcement {0} for {1}", key, name ?: uuid ?: "everyone")
+        plugin.scope.launch { play(announcement.actions) }
+    }
+
+    /** Runs [block] on the main thread and returns what it returns, or throws what it threw. */
+    private suspend fun <T> onMainThread(block: () -> T): T {
+        val result = CompletableDeferred<T>()
+        plugin.runTask { result.completeWith(runCatching(block)) }
+        return result.await()
     }
 
     /**
@@ -260,6 +264,5 @@ class Announcements(private val plugin: XaliChat) {
     companion object {
         const val FILE = "announcements.yml"
         private val FIRST_START_WAIT = 10.seconds
-        private val DURATION = Regex("(\\d+)(ms|[tsmhd])?", RegexOption.IGNORE_CASE)
     }
 }

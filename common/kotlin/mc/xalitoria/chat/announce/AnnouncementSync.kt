@@ -7,8 +7,6 @@ import redis.clients.jedis.HostAndPort
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPooled
 import redis.clients.jedis.JedisPubSub
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
@@ -20,7 +18,7 @@ import kotlin.concurrent.thread
  * sender gives only how long ago it saved (a length of time on its own clock, so nobody's clock being wrong matters)
  * and Redis counts back from its own. The decision is made inside Redis, so two saves at once can't both win.
  *
- * On connecting (and every few minutes, in case a notification was lost) the holder first sends the saves Redis
+ * On connecting (startup, a reload, and after a lost connection) the holder first sends the saves Redis
  * hasn't taken yet ([flush]), so every stamp is on Redis's clock before any is compared, then reads the whole hash and
  * applies what [server] should hold, then offers everything it has settled, which heals a hash that was emptied.
  *
@@ -64,10 +62,6 @@ class AnnouncementSync(
     @Volatile
     private var attempted = false
 
-    private val resync = Executors.newSingleThreadScheduledExecutor { runnable ->
-        Thread(runnable, "xalichat-redis-resync").apply { isDaemon = true }
-    }
-
     /** One flush at a time, so a save can't be sent twice or stamped with an older answer. */
     private val flushing = Any()
 
@@ -75,7 +69,6 @@ class AnnouncementSync(
         val login = if (settings.password.isEmpty()) "no password" else "password" + settings.username.let { if (it.isEmpty()) "" else " for $it" }
         log.info("Sharing announcements through Redis at ${settings.host}:${settings.port} (prefix '${settings.prefix}', ${if (settings.ssl) "TLS" else "no TLS"}, $login)")
         connection = thread(isDaemon = true, name = "xalichat-redis") { connectLoop() }
-        resync.scheduleWithFixedDelay({ sync(quiet = true) }, RESYNC_MINUTES, RESYNC_MINUTES, TimeUnit.MINUTES)
     }
 
     /**
@@ -124,10 +117,9 @@ class AnnouncementSync(
 
     /**
      * Reads the shared set again and offers everything held; for a reload. While disconnected it only says so, as
-     * the connection syncs by itself once it is there. [quiet] is for the regular check, which only speaks up when it
-     * changes something.
+     * the connection syncs by itself once it is there.
      */
-    fun sync(quiet: Boolean = false) {
+    fun sync() {
         val client = client
         if (client == null || !running) {
             if (running) log.info("Not connected to Redis, so there is nothing to sync yet; this happens by itself once it is back")
@@ -142,7 +134,7 @@ class AnnouncementSync(
             val restored = restore(store.settledEntries())
             val summary = "Redis holds ${master.count { it.json != null }} announcements, ${wanted.count { it.json != null }} of them for this server" +
                 if (restored > 0) "; gave it $restored it lacked" else ""
-            if (quiet && restored == 0 && wanted.isEmpty()) log.debug("Synced with Redis: $summary") else log.info("Synced with Redis: $summary")
+            log.info("Synced with Redis: $summary")
         } catch (e: Exception) {
             log.warn("Could not sync announcements with Redis", e)
         }
@@ -241,7 +233,6 @@ class AnnouncementSync(
     override fun close() {
         if (running && client != null) log.info("Disconnecting from Redis")
         running = false
-        resync.shutdownNow()
         runCatching { subscription?.unsubscribe() }
         connection?.interrupt()
     }
@@ -253,8 +244,6 @@ class AnnouncementSync(
     }
 
     companion object {
-        private const val RESYNC_MINUTES = 5L
-
         /**
          * Takes a save that happened ARGV[2] milliseconds ago by the sender's clock, counted back from Redis's own,
          * if that is newer than the copy held (a removal also if just as new), and tells the channel. Returns the
@@ -291,6 +280,17 @@ class AnnouncementSync(
             redis.call('PUBLISH', KEYS[2], ARGV[1])
             return 1
         """
+
+        /** "updated a, b; removed c" for the log: what [entries] did, a removal being one without json. */
+        fun summarize(entries: List<Entry>): String {
+            fun keys(of: List<Entry>) = of.take(5).joinToString(", ") { it.key } + if (of.size > 5) ", … (${of.size} in all)" else ""
+            val removed = entries.filter { it.json == null }
+            val updated = entries.filter { it.json != null }
+            return listOfNotNull(
+                updated.takeIf { it.isNotEmpty() }?.let { "updated ${keys(it)}" },
+                removed.takeIf { it.isNotEmpty() }?.let { "removed ${keys(it)}" },
+            ).joinToString("; ")
+        }
 
         /** The form of a hash value: `<modified>|<json>`, with nothing after the bar for a removal. */
         fun encode(entry: Entry): String = "${entry.modified}|${entry.json.orEmpty()}"

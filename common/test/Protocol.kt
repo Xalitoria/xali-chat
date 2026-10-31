@@ -29,6 +29,8 @@ class Protocol {
         val announce = assertIs<Message.Announce>(receive(Protocol.seal(secret, Message.Announce("rank", uuid, "Notch"))))
         assertEquals(Triple("rank", uuid, "Notch"), Triple(announce.key, announce.uuid, announce.name))
         assertNull(assertIs<Message.Announce>(receive(Protocol.seal(secret, Message.Announce("rank", uuid, null)))).name)
+        val everyone = assertIs<Message.Announce>(receive(Protocol.seal(secret, Message.Announce("rank", null, null))))
+        assertEquals(Triple("rank", null, null), Triple(everyone.key, everyone.uuid, everyone.name), "an announcement needs no player")
 
         val whisper = assertIs<Message.Whisper>(receive(Protocol.seal(secret, Message.Whisper(uuid, "Notch", uuid, true, true, "jeb_", "hi é"))))
         assertEquals(listOf(uuid, "Notch", uuid, true, true, "jeb_", "hi é"), listOf(whisper.id, whisper.from, whisper.fromUuid, whisper.bypassIgnore, whisper.seesVanished, whisper.to, whisper.text))

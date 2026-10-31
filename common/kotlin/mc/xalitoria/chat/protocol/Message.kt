@@ -21,9 +21,9 @@ sealed interface Message {
         override fun encode() = write("BROADCAST") { writeBoolean(bypassMute); write(json.toByteArray()) }
     }
 
-    /** `ANNOUNCE`: play the announcement [key] for the player [uuid] ([name] when known). */
-    class Announce(val key: String, val uuid: UUID, val name: String?) : Message {
-        override fun encode() = write("ANNOUNCE") { writeUTF(key); writeUTF(uuid.toString()); writeUTF(name.orEmpty()) }
+    /** `ANNOUNCE`: play the announcement [key], for the player [uuid] ([name] when known) or for nobody in particular when null. */
+    class Announce(val key: String, val uuid: UUID?, val name: String?) : Message {
+        override fun encode() = write("ANNOUNCE") { writeUTF(key); writeUTF(uuid?.toString().orEmpty()); writeUTF(name.orEmpty()) }
     }
 
     /**
@@ -77,7 +77,7 @@ sealed interface Message {
         fun decode(bytes: ByteArray): Message? = DataInputStream(ByteArrayInputStream(bytes)).run {
             when (readUTF()) {
                 "BROADCAST" -> Broadcast(readBoolean(), String(readAllBytes()))
-                "ANNOUNCE" -> Announce(readUTF(), UUID.fromString(readUTF()), readUTF().takeIf { it.isNotEmpty() })
+                "ANNOUNCE" -> Announce(readUTF(), readUTF().takeIf { it.isNotEmpty() }?.let(UUID::fromString), readUTF().takeIf { it.isNotEmpty() })
                 "WHISPER" -> Whisper(
                     UUID.fromString(readUTF()), readUTF(), readUTF().takeIf { it.isNotEmpty() }?.let(UUID::fromString),
                     readBoolean(), readBoolean(), readUTF(), String(readAllBytes()),

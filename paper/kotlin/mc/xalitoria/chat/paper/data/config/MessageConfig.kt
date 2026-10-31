@@ -190,10 +190,12 @@ data class MessageConfig(
 
         @Serializable
         data class Announce(
-            private val usage: String = "Usage: &d/{0} &r<player> <announcement>",
+            private val usage: String = "Usage: &d/{0} &r<announcement> [player]",
             private val unknown: String = "No announcement named '{0}'.",
             private val disabled: String = "Announcement '{0}' is disabled.",
             private val played: String = "Played '{0}' for {1}.",
+            @SerialName("played-for-all")
+            private val playedForAll: String = "Played '{0}'.",
             @SerialName("target-invalid")
             private val targetInvalid: String = "Player '{0}' not found!",
             @SerialName("local-only")
@@ -203,6 +205,7 @@ data class MessageConfig(
             fun unknown(key: String): String = unknown.formatArgs(key)
             fun disabled(key: String): String = disabled.formatArgs(key)
             fun played(key: String, playerName: String): String = played.formatArgs(key, playerName)
+            fun playedForAll(key: String): String = playedForAll.formatArgs(key)
             fun targetInvalid(playerName: String): String = targetInvalid.formatArgs(playerName)
         }
 

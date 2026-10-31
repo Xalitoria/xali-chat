@@ -162,7 +162,7 @@ class XaliChat(
                 val reached = proxy.allServers.count { deliver(it, message) }
                 when (message) {
                     is Broadcast -> logger.info("[Broadcast from {}] {}", origin.serverInfo.name, plain(message.json))
-                    is Announce -> logger.info("[Announcement {} from {}] for {}", message.key, origin.serverInfo.name, message.name ?: message.uuid)
+                    is Announce -> logger.info("[Announcement {} from {}] for {}", message.key, origin.serverInfo.name, message.name ?: message.uuid ?: "everyone")
                 }
                 debug("Relayed {} from {} to {} of {} servers", message::class.simpleName, origin.serverInfo.name, reached, proxy.allServers.size)
             }
@@ -204,9 +204,11 @@ class XaliChat(
             rescan()
             // Anything saved here goes first, so that it isn't compared with what Redis sent on another clock.
             sync?.flush()
-            val applied = entries.count { store.apply(it) }
-            if (applied > 0) store.write()
-            logger.info("Took {} of {} announcements from Redis", applied, entries.size)
+            val taken = entries.filter { store.apply(it) }
+            if (taken.isEmpty()) return debug("Redis sent {} announcements, none newer than the master file", entries.size)
+            store.write()
+            // Always, whatever debug says: this changes the master file.
+            logger.info("Synced announcements.yml from Redis: {}", AnnouncementSync.summarize(taken))
         }
     }
 

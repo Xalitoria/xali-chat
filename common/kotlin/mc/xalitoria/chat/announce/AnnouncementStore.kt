@@ -70,7 +70,8 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
     fun scan(): List<Entry> {
         val text = if (file.exists()) file.readText() else ""
         val loaded = try {
-            if (text.lines().all { it.isBlank() || it.trimStart().startsWith('#') }) emptyMap() else yaml.decodeFromString(fileSerializer, text)
+            if (text.lines().all { it.isBlank() || it.trimStart().startsWith('#') }) emptyMap()
+            else yaml.decodeFromString(fileSerializer, text).mapValues { it.value.normalized() }
         } catch (e: Exception) {
             backup()
             throw e
@@ -113,7 +114,7 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
             stamps[entry.key] = Stamp(null, entry.modified)
         } else {
             val announcement = try {
-                wire.decodeFromString(Announcement.serializer(), entry.json)
+                wire.decodeFromString(Announcement.serializer(), entry.json).normalized()
             } catch (e: Exception) {
                 return false
             }
@@ -238,9 +239,12 @@ class AnnouncementStore(private val file: Path, private val stateFile: Path) {
 #   repeat: 1800
 #   servers:
 #   - "survival-*"
-#   messages:
-#   - "&6Hello, {name}!"
-#   commands: []
+#   actions:
+#   - message: "&6Hello, {name}!"
+#   - delay: 2s
+#   - condition: "%player_level% >= 10"
+#     'true':
+#     - command: "give {name} bread"
 """
     }
 }

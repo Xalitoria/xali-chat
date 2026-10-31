@@ -116,8 +116,8 @@ over at startup and logs which labels it took. `/xsilence` has no `/mute` alias,
 | `/xnickname <player\|uuid> <nickname\|reset>` | `nickname`, `nick` | Set or clear another player's nickname, offline players included. | `xalichat.command.nickname.others` |
 | `/xbroadcast <message>` | `broadcast`, `bcast`, `bc` | Announce to every online player on this server and the console. | `xalichat.admin.broadcast` |
 | `/xgbroadcast <message>` | `gbroadcast`, `gbcast`, `gbc` | The same on every server behind the proxy. | `xalichat.admin.broadcast.global` |
-| `/xannounce <player> <announcement>` | `announce`, `ann` | Play an [announcement](#announcements) on this server for that player. | `xalichat.admin.announce` |
-| `/xgannounce <player> <announcement>` | `gannounce`, `gann` | Play it on every server its `servers` list names. | `xalichat.admin.announce.global` |
+| `/xannounce <announcement> [player]` | `announce`, `ann` | Play an [announcement](#announcements) on this server, for that player if one is given. | `xalichat.admin.announce` |
+| `/xgannounce <announcement> [player]` | `gannounce`, `gann` | Play it on every server its `servers` list names. | `xalichat.admin.announce.global` |
 | `/xview <id>` | `view` | Open an item, inventory or ender chest snapshot from chat. Used by the clickable tokens. | none |
 
 The `g` commands (global) travel through the proxy, so they need [Velocity forwarding](#proxy-sync) and a player online
@@ -173,25 +173,33 @@ empty file at once.
   enable: true # default
   delay: 300 # seconds
   repeat: 1800 # seconds
-  messages:
-  - "========================================"
-  - ""
-  - "Join the Discord: https://discord.gg/rosaic"
-  - ""
-  - "========================================"
-  commands:
-  - "playsound @a pling"
-  - "delay 2s 10t" # 2.5 seconds total
-  - "another-command"
+  actions:
+  - message:
+    - "========================================"
+    - ""
+    - "Join the Discord: https://discord.gg/rosaic"
+    - ""
+    - "========================================"
+  - command: "playsound @a pling"
+  - delay: 2s 10t # 2.5 seconds total
+  - command: "another-command"
 "rank-titan":
   servers:
   - "skyblock"
-  messages:
-  - "%player_name% purchased Titan rank!"
-  - "Get one at https://store.rosaic.net"
-  commands:
-  - "lp group {uuid} promote skyblock server=skyblock"
-  - "playsound @a yay"
+  actions:
+  - condition: "%discordsrv_linked%"
+    'true':
+    - message: "%player_name% purchased Titan rank!"
+    - condition: '%luckperms_group% != "titan"'
+      'true':
+      - command: "lp user {uuid} parent add titan"
+      - command: "playsound minecraft:entity.player.levelup master @a"
+      'false':
+      - message: "You already have this rank"
+    'false':
+    - message:
+      - "&cLink your Discord first"
+      - "<click:open_url:'https://discord.gg/rosaic'>Join here</click>"
 ```
 
 | Key | Default | Meaning |
@@ -200,21 +208,44 @@ empty file at once.
 | `delay` | `0` | Seconds before the first automatic run. |
 | `repeat` | `0` | Seconds between automatic runs; `0` runs it once. |
 | `servers` | all | The servers that hold and run it, matched against their names in `velocity.toml` with `*` and `?` wildcards (`skyblock-*`). A server's `database.server-name` in `config.yml` must be the same name. Empty means every server. `/xannounce` ignores the list. |
-| `messages` | none | Chat lines, one message each; `""` is a blank line. |
-| `commands` | none | Console commands, run in order after the messages. |
+| `actions` | none | What it does, in order, see [Actions](#actions). |
 
 An announcement with a `delay` or `repeat` runs by itself on every server that matches `servers`. One with neither runs
 only from `/xannounce` or `/xgannounce`.
 
-- **Messages** go to every online player who has not muted broadcasts, and to the console. They accept `&` codes,
-  `&#RRGGBB` and MiniMessage tags (`<gradient:red:blue>`, `<click:open_url:...>`).
+`/xannounce <announcement> [player]` runs it for the player, if one is given. Without one it runs for nobody in
+particular, like a timer does.
+
+#### Actions
+
+`actions` is a list; each item is a map with exactly one of these keys, and they run top to bottom.
+
+| Key | Value | Does |
+|---|---|---|
+| `message` | A line, or a list of lines | Sends chat lines to every online player who has not muted broadcasts, and to the console. `""` is a blank line. They accept `&` codes, `&#RRGGBB` and MiniMessage tags (`<gradient:red:blue>`, `<click:open_url:...>`). |
+| `command` | A command | Runs it as the console, a leading `/` is optional. |
+| `delay` | A time | Pauses the rest of the list. Tokens are a number and a unit, added together: `t` ticks, `ms`, `s`, `m`, `h`, `d`. A bare number is seconds, so `1` is a second and `2s 10t` is 2.5 seconds. |
+| `condition` | A test | Runs the actions under `'true'` if it holds and those under `'false'` if it does not. Either can be left out or empty; both can hold more conditions. |
+
+A file with an action that has none of these keys (a typo, say), more than one, or a bad `delay` fails to parse, like any
+other invalid YAML.
+
+- **Conditions** are a value that is true or false by itself, or two values with an operator between them. Placeholders
+  are expanded first. `true`, `yes`, `on` and `1` (in any case) are true; everything else is false, including a
+  placeholder that did not resolve. The operators are `==`, `!=`, `>=`, `<=`, `>` and `<`. Two numbers are compared as
+  numbers; otherwise `==` and `!=` compare the text exactly and the others are false. Quotes around a value are dropped
+  (`%luckperms_group% != "titan"`), and the operator is found in the text as you wrote it, so a placeholder whose value
+  contains `==` does not change the test.
 - **Placeholders** resolve for the player the announcement runs for: `{name}`, `{uuid}` (dashed), `%player_name%` and
-  any PlaceholderAPI placeholder. A timer has no player, so each viewer gets their own (the console gets none).
-  Placeholders work in commands too. Text from `/xbroadcast` is never expanded.
-- **`delay`** is an internal command that pauses the rest of the list instead of running anything. Each token is a
-  number and a unit, added together: `t` ticks, `ms`, `s`, `m`, `h`, `d`. A bare number is seconds. `delay 2s 10t` waits
-  2.5 seconds.
+  any PlaceholderAPI placeholder, in messages, commands and conditions. With no player (a timer, or no player given to
+  the command), each viewer of a message gets their own, but commands and conditions see no player, so a player
+  placeholder in them stays as written. Text from `/xbroadcast` is never expanded.
 - Keys should be single words, since the commands take them as one argument.
+
+> [!NOTE]
+> The older format with `messages:` and `commands:` lists is still read: the messages become one `message` action and the
+> commands follow it as `command` actions, a `delay 2s` command becoming a `delay` action. A file is rewritten with
+> `actions` the next time the plugin writes it (a Redis update); until then it is read as written.
 
 ### How announcements are shared
 
@@ -224,12 +255,14 @@ announcement can be edited on any server, or in the master on the proxy, and end
 
 - **Saving the file** offers each key that changed (new, edited or deleted) to Redis, which tells everyone else. Each
   server the key names applies it. Nothing needs a reload, and the timers restart by themselves. Only keys whose content
-  changed count; comments and layout do not.
+  changed count; comments and layout do not. Every update that changes something is logged, with or without `debug`:
+  `Synced announcements.yml from Redis: updated a, b; removed c` (a server adds how many timed announcements it
+  reloaded), and `Sent 1 changed announcement (a) to Redis` for a save made there.
 - **The newest save wins.** Every key carries the time its file was saved, and an older copy never replaces a newer
   one. An edit made on a server while it was down loses to a later one made elsewhere.
 - **A first start** has no file: the server reads what Redis holds and creates `announcements.yml` from the keys that
   name it. The file is empty if none do, or after ten seconds if Redis does not answer; what arrives later is added.
-- **Connecting** (startup, `/xalichat reload` and every five minutes) reads everything Redis holds and applies what is
+- **Connecting** (startup, `/xalichat reload` and a reconnect after the connection was lost) reads everything Redis holds and applies what is
   newer, then offers everything in the file, so a Redis that was wiped or down during an edit catches up. A key that
   was deleted elsewhere, or no longer names this server, is dropped from the file then.
 - A file that fails to parse is logged, the announcements already loaded stay, and nothing is sent. The last working
@@ -258,7 +291,8 @@ redis:
 `/xalichat reload` closes the connection and opens a new one from these settings, so a changed host or password needs no
 restart on a server. The proxy has no reload and needs a restart.
 
-A server asks Redis for the latest as soon as it connects, on a reload, and every 5 minutes after. It first sends what
+A server asks Redis for the latest as soon as it connects, on a reload, and after a lost connection; a saved file is
+sent as soon as it changes, and Redis tells the others. It first sends what
 it has saved that Redis has not taken, then reads the whole set and applies the keys that name it, then gives Redis
 anything it lacks (which refills a Redis that lost its data). With Redis down, announcements keep running from the
 files, saves are kept and go up when it is back, and the connection is retried (1 second, doubling up to 30).
@@ -312,7 +346,7 @@ proxy and the servers speak (the code is in `chat/common`). All integers are big
 | `SIGNED` | `UTF "SIGNED"`, 32-byte HMAC-SHA256 of the rest, then the message | Wraps every message below. The HMAC is computed with the forwarding secret, as UTF-8 bytes. |
 | `CHUNK` | `UTF "CHUNK"`, `UTF id`, `int index`, `int total`, bytes | One slice (at most 30 000 bytes) of a message too big for one plugin message (Bukkit's limit is 32 766). The slices, in index order, are the whole `SIGNED` frame. At most 64 slices; an unfinished transfer is dropped after 30 seconds. |
 | `BROADCAST` | `UTF "BROADCAST"`, `boolean bypassMute`, Adventure JSON of the message | Server to proxy from `/xgbroadcast`; proxy to every server, including the sender. |
-| `ANNOUNCE` | `UTF "ANNOUNCE"`, `UTF key`, `UTF uuid`, `UTF name` (may be empty) | Server to proxy from `/xgannounce`; proxy to every server, including the sender. Servers not in the announcement's `servers` list skip it. |
+| `ANNOUNCE` | `UTF "ANNOUNCE"`, `UTF key`, `UTF uuid` (empty for no player), `UTF name` (may be empty) | Server to proxy from `/xgannounce`; proxy to every server, including the sender. Servers not in the announcement's `servers` list skip it. |
 
 Unsigned or wrongly signed frames are ignored.
 
@@ -460,6 +494,7 @@ Sources are under `chat/<submodule>/kotlin`, tests under `chat/<submodule>/test`
 |---|---|
 | `chat/common` `Protocol` | Frames, signing, chunking and the message encodings. |
 | `chat/common` `AnnouncementStore` | Reading, writing and merging `announcements.yml`. |
+| `chat/common` `Actions` | The `actions` tree: reading and writing it through the file and the wire, the old `messages` and `commands` format, the errors for a bad action, delays and conditions. |
 | `chat/common` `AnnouncementSync` | The sync between several participants, including skewed clocks. Needs a real Redis: skipped unless `XALI_REDIS_TEST` is set. |
 | `chat/paper` `Colorizer` | Formatting permissions: what is stripped and what stays. |
 | `chat/paper` `PlanExtension` | Plan's own validation of the extension's annotations, parameters and return types. |
