@@ -16,6 +16,9 @@ import com.zaxxer.hikari.HikariDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import mc.xalitoria.util.config.DatabaseConfig
+import mc.xalitoria.util.config.DatabaseType
+import mc.xalitoria.util.config.databaseType
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
@@ -45,39 +48,26 @@ object DatabaseManager {
     var serverId = 0
         private set
 
-    private val TABLE_PREFIX = Regex("[A-Za-z0-9_]*")
-
     fun tableName(name: String): String = tablePrefix + name
 
     fun connect(plugin: XaliChat, config: MainConfig.Database, nickname: MainConfig.Nickname = MainConfig.Nickname()) {
         val hikariConfig = HikariConfig()
-        val type = Type.valueOf(config.type.uppercase())
-        when (type) {
-            MARIADB, MYSQL -> hikariConfig.remote(type == Type.MARIADB, config.mysql)
-            else -> hikariConfig.sqlite(plugin.dataFolder.resolve(config.sqlite.filename))
-        }
+        val type = config.databaseType
+        if (type.isRemote) hikariConfig.remote(type, config.mysql) else hikariConfig.sqlite(plugin.dataFolder.resolve(config.sqlite.filename))
         hikariConfig.poolName = "XaliChat-DB"
 
         // A shared database only holds nicknames when asked to; otherwise they stay in a local file.
-        val local = if (type != Type.SQLITE && !nickname.remote) {
+        val local = if (type.isRemote && !nickname.remote) {
             HikariConfig().apply { sqlite(plugin.dataFolder.resolve(LOCAL_NICKNAMES)); poolName = "XaliChat-Nicknames" }
                 .let(::HikariDataSource)
         } else null
         attach(HikariDataSource(hikariConfig), config, local)
     }
 
-    /** Connects to a MariaDB server with its own driver or to a MySQL one with Connector/J. */
-    internal fun HikariConfig.remote(mariadb: Boolean, mysql: MainConfig.Database.Mysql) {
-        // Connector/J asks a MariaDB server for INFORMATION_SCHEMA columns it doesn't have ("Unknown column
-        // 'RESERVED'") and fails before the schema is read, so each server gets its own driver.
-        if (mariadb) {
-            jdbcUrl = "jdbc:mariadb://${mysql.host}:${mysql.port}/${mysql.database}" +
-                "?sslMode=${if (mysql.useSsl) "trust" else "disable"}"
-            driverClassName = "org.mariadb.jdbc.Driver"
-        } else {
-            jdbcUrl = "jdbc:mysql://${mysql.host}:${mysql.port}/${mysql.database}?useSSL=${mysql.useSsl}"
-            driverClassName = "com.mysql.cj.jdbc.Driver"
-        }
+    /** Connects to a MariaDB server with its own driver or to a MySQL one with Connector/J (see [DatabaseConfig.Mysql.jdbcUrl]). */
+    internal fun HikariConfig.remote(type: DatabaseType, mysql: DatabaseConfig.Mysql) {
+        jdbcUrl = mysql.jdbcUrl(type)
+        driverClassName = mysql.driverClass(type)
         username = mysql.username
         password = mysql.password
         maximumPoolSize = mysql.poolSize.coerceAtLeast(1)
@@ -97,9 +87,8 @@ object DatabaseManager {
      */
     internal fun attach(source: HikariDataSource, config: MainConfig.Database, localNicknames: HikariDataSource? = null) {
         dataSource = source
-        require(TABLE_PREFIX.matches(config.tablePrefix)) { "database.table-prefix may only contain letters, digits and underscores" }
         require(config.serverName.isNotBlank() && config.serverName.length <= 64) { "database.server-name must be 1-64 characters" }
-        tablePrefix = config.tablePrefix
+        tablePrefix = DatabaseConfig.checkPrefix(config.tablePrefix)
         serverName = config.serverName
         database = Database.connect(source)
         this.localNicknames = localNicknames
@@ -138,10 +127,4 @@ object DatabaseManager {
         withContext(Dispatchers.IO) { suspendTransaction(db = nicknameDatabase, statement = statement) }
 
     private const val LOCAL_NICKNAMES = "nicknames.db"
-
-    enum class Type() {
-        SQLITE,
-        MARIADB,
-        MYSQL;
-    }
 }

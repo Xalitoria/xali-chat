@@ -5,6 +5,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import mc.xalitoria.chat.announce.RedisSettings
+import mc.xalitoria.util.config.DatabaseConfig
+import mc.xalitoria.util.config.DatabaseSettings
 
 @Serializable
 data class MainConfig(
@@ -103,36 +105,19 @@ data class MainConfig(
         val unique: Boolean = true,
     )
 
+    /** The shared database settings, plus the name this server goes by in the servers table. */
     @Serializable
     data class Database(
-        @YamlComment("Database types: mariadb or mysql, sqlite")
-        val type: String = "sqlite",
+        @YamlComment("Database types: sqlite, mariadb or mysql. Use mariadb for MariaDB: it has its own driver.")
+        override val type: String = "sqlite",
         @YamlComment("Prepended to every table name: letters, digits and underscores. Needs a restart; a new prefix means new, empty tables.")
         @SerialName("table-prefix")
-        val tablePrefix: String = "xalichat_",
+        override val tablePrefix: String = "xalichat_",
         @YamlComment("This server's row in the servers table that log rows link to. Use a different name on each server sharing a database.")
         @SerialName("server-name")
         val serverName: String = "server",
-        val sqlite: Sqlite = Sqlite(),
-        @YamlComment("MySQL/MariaDB connection settings")
-        val mysql: Mysql = Mysql(),
-    ) {
-        @Serializable
-        data class Sqlite(
-            val filename: String = "xalichat.db",
-        )
-
-        @Serializable
-        data class Mysql(
-            val host: String = "localhost",
-            val port: Int = 3306,
-            val database: String = "xalichat",
-            val username: String = "root",
-            val password: String = "",
-            @SerialName("use-ssl")
-            val useSsl: Boolean = false,
-            @SerialName("pool-size")
-            val poolSize: Int = 10,
-        )
-    }
+        override val sqlite: DatabaseConfig.Sqlite = DatabaseConfig.Sqlite("xalichat.db"),
+        @YamlComment("MariaDB/MySQL connection settings")
+        override val mysql: DatabaseConfig.Mysql = DatabaseConfig.Mysql(database = "xalichat"),
+    ) : DatabaseSettings
 }
