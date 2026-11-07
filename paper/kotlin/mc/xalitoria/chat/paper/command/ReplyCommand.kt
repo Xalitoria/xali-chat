@@ -3,6 +3,8 @@ package mc.xalitoria.chat.paper.command
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.xalitoria.util.message.fail
+import com.xalitoria.util.message.send
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
@@ -10,8 +12,6 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.ReplyTracker
-import mc.xalitoria.util.message.fail
-import mc.xalitoria.util.message.send
 
 /** Answers whoever the sender last exchanged a private message with, on this server or another. */
 object ReplyCommand: XCommand(XaliChat.INSTANCE) {

@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.logs
+package com.xalitoria.chat.logs
 
 import java.util.concurrent.atomic.AtomicLong
 

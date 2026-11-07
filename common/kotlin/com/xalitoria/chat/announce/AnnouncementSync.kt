@@ -1,12 +1,12 @@
-package mc.xalitoria.chat.announce
+package com.xalitoria.chat.announce
 
-import mc.xalitoria.chat.announce.AnnouncementStore.Pending
-import mc.xalitoria.chat.protocol.Entry
+import com.xalitoria.chat.announce.AnnouncementStore.Pending
+import com.xalitoria.chat.protocol.Entry
 import redis.clients.jedis.DefaultJedisClientConfig
 import redis.clients.jedis.HostAndPort
 import redis.clients.jedis.Jedis
-import redis.clients.jedis.JedisPooled
 import redis.clients.jedis.JedisPubSub
+import redis.clients.jedis.RedisClient
 import kotlin.concurrent.thread
 
 /**
@@ -52,7 +52,7 @@ class AnnouncementSync(
 
     /** Commands go through this; null while there is no connection. */
     @Volatile
-    private var client: JedisPooled? = null
+    private var client: RedisClient? = null
 
     @Volatile
     private var subscription: JedisPubSub? = null
@@ -170,7 +170,7 @@ class AnnouncementSync(
                 .password(settings.password.ifEmpty { null })
                 .ssl(settings.ssl)
                 .connectionTimeoutMillis(5_000)
-            val commands = JedisPooled(address, config.socketTimeoutMillis(5_000).build())
+            val commands = RedisClient.builder().hostAndPort(address).clientConfig(config.socketTimeoutMillis(5_000).build()).build()
             try {
                 // Subscribing holds its connection, which waits on the channel for as long as it likes.
                 Jedis(address, config.socketTimeoutMillis(0).build()).use { subscriber ->

@@ -1,6 +1,6 @@
 package mc.xalitoria.chat.paper.util
 
-import mc.xalitoria.util.kotlin.toggle
+import com.xalitoria.util.kotlin.toggle
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 

@@ -446,7 +446,7 @@ master `announcements.yml` with two switched-off examples, so there is something
 
 ## Working with other plugins
 
-`chat/api` (`mc.xalitoria.chat.api`) lets a plugin take part without XaliChat knowing about it. List XaliChat as a
+`chat/api` (`net.xalitoria.chat`) lets a plugin take part without XaliChat knowing about it. List XaliChat as a
 dependency of the plugin (`join-classpath` on; optional if the plugin can do without) and compile against
 `compileOnly(project(":chat:api"))`. Both interfaces are found through Bukkit's services manager.
 

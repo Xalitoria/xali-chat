@@ -8,10 +8,10 @@ import com.djrapitops.plan.extension.annotation.NumberProvider
 import com.djrapitops.plan.extension.annotation.PluginInfo
 import com.djrapitops.plan.extension.icon.Color
 import com.djrapitops.plan.extension.icon.Family
+import com.xalitoria.chat.logs.LogFilter
+import com.xalitoria.chat.logs.LogKind
+import com.xalitoria.chat.logs.LogRepository
 import kotlinx.coroutines.runBlocking
-import mc.xalitoria.chat.logs.LogFilter
-import mc.xalitoria.chat.logs.LogKind
-import mc.xalitoria.chat.logs.LogRepository
 import kotlin.time.Duration.Companion.days
 
 /**

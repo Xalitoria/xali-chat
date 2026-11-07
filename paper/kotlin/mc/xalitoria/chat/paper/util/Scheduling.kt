@@ -1,11 +1,11 @@
 package mc.xalitoria.chat.paper.util
 
+import com.xalitoria.util.bukkit.runTask
+import com.xalitoria.util.bukkit.runTaskLater
+import com.xalitoria.util.bukkit.runTaskTimer
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.completeWith
-import mc.xalitoria.util.bukkit.runTask
-import mc.xalitoria.util.bukkit.runTaskLater
-import mc.xalitoria.util.bukkit.runTaskTimer
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Entity
 import org.bukkit.plugin.Plugin

@@ -1,6 +1,6 @@
 package mc.xalitoria.chat.paper.data.db.repository
 
-import mc.xalitoria.chat.logs.ServerTable
+import com.xalitoria.chat.logs.ServerTable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll

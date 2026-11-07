@@ -3,7 +3,7 @@ package mc.xalitoria.chat.paper.modal.ic
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.data.constants.Permissions
-import mc.xalitoria.util.message.PLAIN
+import com.xalitoria.util.message.PLAIN
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TextReplacementConfig
 import net.kyori.adventure.text.event.ClickEvent

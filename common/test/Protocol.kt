@@ -1,6 +1,6 @@
-import mc.xalitoria.chat.protocol.Message
-import mc.xalitoria.chat.protocol.Protocol
-import mc.xalitoria.chat.protocol.Reassembler
+import com.xalitoria.chat.protocol.Message
+import com.xalitoria.chat.protocol.Protocol
+import com.xalitoria.chat.protocol.Reassembler
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertContentEquals

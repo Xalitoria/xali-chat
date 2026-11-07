@@ -10,8 +10,8 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.util.Colorizer
-import mc.xalitoria.chat.protocol.Message
-import mc.xalitoria.util.message.*
+import com.xalitoria.chat.protocol.Message
+import com.xalitoria.util.message.*
 
 /**
  * `/xbroadcast <message>` sends a server-wide announcement to everyone online and the console. Players who muted

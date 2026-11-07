@@ -3,9 +3,9 @@ package mc.xalitoria.chat.velocity
 import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlComment
 import com.charleskorn.kaml.YamlConfiguration
+import com.xalitoria.chat.announce.RedisSettings
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import mc.xalitoria.chat.announce.RedisSettings
 import java.nio.file.Path
 import kotlin.io.path.exists
 import kotlin.io.path.readText

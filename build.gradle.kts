@@ -9,8 +9,15 @@ plugins {
 }
 
 subprojects {
-    group = "mc.xalitoria.chat"
-    version = "0.10.2"
+    // Named for the package of what the module holds, see the Packages section of the root README.
+    group = when (name) {
+        "api" -> "net.xalitoria.chat"
+        "common" -> "com.xalitoria.chat"
+        "paper" -> "mc.xalitoria.chat.paper"
+        "velocity" -> "mc.xalitoria.chat.velocity"
+        else -> error("No group for $path")
+    }
+    version = "1.0.0"
 }
 
 tasks.named("build") {
@@ -44,8 +51,8 @@ paper {
         register("SuperVanish") { required = false }
         register("PremiumVanish") { required = false }
     }
-    // The dev build of ProtocolLib tracks new Minecraft versions, so it isn't pinned.
     server {
+        // The dev build of ProtocolLib tracks new Minecraft versions, so it isn't pinned.
         plugin("ProtocolLib.jar", "https://github.com/dmulloy2/ProtocolLib/releases/download/dev-build/ProtocolLib.jar")
         plugin("PlaceholderAPI-2.12.3.jar", "https://cdn.modrinth.com/data/lKEzGugV/versions/pIvQcXW8/PlaceholderAPI-2.12.3.jar")
         plugin("VaultUnlocked-2.20.3.jar", "https://cdn.modrinth.com/data/ayRaM8J7/versions/qZgRzoYs/VaultUnlocked-2.20.3.jar")

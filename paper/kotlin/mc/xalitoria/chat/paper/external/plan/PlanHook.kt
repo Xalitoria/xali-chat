@@ -2,10 +2,10 @@ package mc.xalitoria.chat.paper.external.plan
 
 import com.djrapitops.plan.capability.CapabilityService
 import com.djrapitops.plan.extension.ExtensionService
-import mc.xalitoria.chat.logs.LogPage
+import com.xalitoria.chat.logs.LogPage
+import com.xalitoria.util.message.fail
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.util.message.fail
 
 /**
  * Registers [PlanExtension] and the [LogPage] with Plan when it is installed and `plan.enable` is on. Everything that names a Plan class

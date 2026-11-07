@@ -1,9 +1,9 @@
 package mc.xalitoria.chat.paper.util
 
+import com.xalitoria.util.bukkit.SenderPlayer
+import com.xalitoria.util.message.info
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.data.constants.Permissions
-import mc.xalitoria.util.bukkit.SenderPlayer
-import mc.xalitoria.util.message.info
 import org.bukkit.entity.Player
 
 /** Tells socialspy watchers about a delivered DM. Proxied DMs only reach spies on this server. */

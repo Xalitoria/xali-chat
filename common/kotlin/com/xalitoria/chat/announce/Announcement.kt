@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.announce
+package com.xalitoria.chat.announce
 
 import com.charleskorn.kaml.YamlComment
 import kotlinx.serialization.EncodeDefault

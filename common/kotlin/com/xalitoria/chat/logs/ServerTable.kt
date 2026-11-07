@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.logs
+package com.xalitoria.chat.logs
 
 import org.jetbrains.exposed.v1.core.Table
 

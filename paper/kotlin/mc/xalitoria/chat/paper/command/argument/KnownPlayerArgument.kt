@@ -7,11 +7,11 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.MessageComponentSerializer
 import io.papermc.paper.command.brigadier.argument.CustomArgumentType
 import mc.xalitoria.chat.paper.util.*
-import mc.xalitoria.util.message.*
 import org.bukkit.OfflinePlayer
 import org.bukkit.Server
 import java.util.concurrent.CompletableFuture

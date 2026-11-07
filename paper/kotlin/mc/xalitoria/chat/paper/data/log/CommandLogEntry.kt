@@ -1,7 +1,7 @@
 package mc.xalitoria.chat.paper.data.log
 
+import com.xalitoria.util.serial.UniqueId
 import kotlinx.serialization.Serializable
-import mc.xalitoria.util.serial.UniqueId
 
 @Serializable
 data class CommandLogEntry(

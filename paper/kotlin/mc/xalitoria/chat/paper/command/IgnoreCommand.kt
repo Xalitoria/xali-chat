@@ -14,7 +14,7 @@ import mc.xalitoria.chat.paper.data.db.IgnoreCache
 import mc.xalitoria.chat.paper.data.db.repository.IgnoreRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import mc.xalitoria.util.message.*
+import com.xalitoria.util.message.*
 import mc.xalitoria.chat.paper.command.argument.KnownPlayerArgument
 import mc.xalitoria.chat.paper.util.nameOrId
 import org.bukkit.OfflinePlayer

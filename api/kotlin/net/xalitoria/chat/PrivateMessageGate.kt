@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.api
+package net.xalitoria.chat
 
 import org.bukkit.entity.Player
 import java.util.UUID

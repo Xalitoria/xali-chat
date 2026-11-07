@@ -7,7 +7,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.modal.command.XCommand
-import mc.xalitoria.util.message.*
+import com.xalitoria.util.message.*
 import mc.xalitoria.chat.paper.data.constants.Permissions
 
 /** The root command. Every other command is registered on its own and also runs here under its names without the `x`. */

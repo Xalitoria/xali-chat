@@ -6,7 +6,7 @@ import mc.xalitoria.chat.paper.data.constants.CommandAliases
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.util.SpyState
 import mc.xalitoria.chat.paper.util.resolvePlaceholders
-import mc.xalitoria.util.message.info
+import com.xalitoria.util.message.info
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener

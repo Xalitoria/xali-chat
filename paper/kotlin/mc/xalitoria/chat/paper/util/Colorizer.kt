@@ -1,8 +1,8 @@
 package mc.xalitoria.chat.paper.util
 
+import com.xalitoria.color.componentColors
+import com.xalitoria.util.message.MINI
 import mc.xalitoria.chat.paper.data.constants.Permissions
-import mc.xalitoria.color.componentColors
-import mc.xalitoria.util.message.MINI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.minimessage.MiniMessage

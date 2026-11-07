@@ -1,5 +1,5 @@
-import mc.xalitoria.chat.announce.AnnouncementSync
-import mc.xalitoria.chat.protocol.Entry
+import com.xalitoria.chat.announce.AnnouncementSync
+import com.xalitoria.chat.protocol.Entry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

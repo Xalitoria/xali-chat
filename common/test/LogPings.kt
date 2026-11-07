@@ -1,7 +1,7 @@
-import mc.xalitoria.chat.announce.AnnouncementSync
-import mc.xalitoria.chat.announce.RedisSettings
-import mc.xalitoria.chat.logs.LogChanges
-import mc.xalitoria.chat.logs.LogPings
+import com.xalitoria.chat.announce.AnnouncementSync
+import com.xalitoria.chat.announce.RedisSettings
+import com.xalitoria.chat.logs.LogChanges
+import com.xalitoria.chat.logs.LogPings
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals

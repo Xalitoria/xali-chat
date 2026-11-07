@@ -1,10 +1,10 @@
 package mc.xalitoria.chat.paper.listener
 
+import com.xalitoria.util.message.PLAIN
+import com.xalitoria.util.message.toComponent
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.constants.Permissions.stripColors
-import mc.xalitoria.util.message.PLAIN
-import mc.xalitoria.util.message.toComponent
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener

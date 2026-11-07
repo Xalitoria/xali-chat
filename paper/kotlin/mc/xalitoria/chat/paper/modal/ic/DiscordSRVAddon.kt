@@ -12,8 +12,8 @@ import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.constants.Permissions.stripColors as stripFormat
-import mc.xalitoria.color.stripColors
-import mc.xalitoria.util.message.*
+import com.xalitoria.color.stripColors
+import com.xalitoria.util.message.*
 import net.kyori.adventure.text.Component
 import org.bukkit.permissions.Permissible
 import org.bukkit.permissions.PermissibleBase

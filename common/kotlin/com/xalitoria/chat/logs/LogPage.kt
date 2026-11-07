@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.logs
+package com.xalitoria.chat.logs
 
 import com.djrapitops.plan.capability.CapabilityService
 import com.djrapitops.plan.delivery.web.ResolverService

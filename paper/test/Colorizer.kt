@@ -1,5 +1,5 @@
+import com.xalitoria.util.message.PLAIN
 import mc.xalitoria.chat.paper.util.Colorizer
-import mc.xalitoria.util.message.PLAIN
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TextComponent
 import net.kyori.adventure.text.event.ClickEvent

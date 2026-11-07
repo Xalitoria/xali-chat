@@ -1,12 +1,12 @@
-package mc.xalitoria.chat.announce
+package com.xalitoria.chat.announce
 
 import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlConfiguration
+import com.xalitoria.chat.protocol.Entry
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
-import mc.xalitoria.chat.protocol.Entry
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption

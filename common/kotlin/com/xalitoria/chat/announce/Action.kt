@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.announce
+package com.xalitoria.chat.announce
 
 import com.charleskorn.kaml.YamlInput
 import com.charleskorn.kaml.YamlList

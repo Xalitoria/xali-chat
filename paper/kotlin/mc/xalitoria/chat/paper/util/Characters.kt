@@ -5,8 +5,8 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.config.MainConfig
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import net.kyori.adventure.text.Component
-import mc.xalitoria.util.message.PLAIN
-import mc.xalitoria.util.message.toComponent
+import com.xalitoria.util.message.PLAIN
+import com.xalitoria.util.message.toComponent
 import net.kyori.adventure.text.TextReplacementConfig
 import org.bukkit.entity.Player
 import java.util.regex.Pattern

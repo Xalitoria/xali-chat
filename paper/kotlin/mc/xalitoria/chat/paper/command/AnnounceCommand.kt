@@ -12,9 +12,9 @@ import mc.xalitoria.chat.paper.command.argument.KnownPlayerArgument
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.nameOrId
-import mc.xalitoria.chat.protocol.Message
+import com.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.paper.util.suggestMatching
-import mc.xalitoria.util.message.*
+import com.xalitoria.util.message.*
 import org.bukkit.OfflinePlayer
 
 /**

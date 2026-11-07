@@ -1,8 +1,8 @@
 package mc.xalitoria.chat.paper.data.constants
 
-import mc.xalitoria.color.*
-import mc.xalitoria.util.bukkit.hasAnyPermission
-import mc.xalitoria.util.bukkit.hasPermission
+import com.xalitoria.color.*
+import com.xalitoria.util.bukkit.hasAnyPermission
+import com.xalitoria.util.bukkit.hasPermission
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver

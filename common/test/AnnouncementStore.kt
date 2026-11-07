@@ -1,9 +1,9 @@
+import com.xalitoria.chat.announce.Action
+import com.xalitoria.chat.announce.Announcement
+import com.xalitoria.chat.announce.AnnouncementStore
+import com.xalitoria.chat.announce.AnnouncementSync
+import com.xalitoria.chat.protocol.Entry
 import kotlinx.serialization.json.Json
-import mc.xalitoria.chat.announce.Action
-import mc.xalitoria.chat.announce.Announcement
-import mc.xalitoria.chat.announce.AnnouncementStore
-import mc.xalitoria.chat.announce.AnnouncementSync
-import mc.xalitoria.chat.protocol.Entry
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
 import kotlin.io.path.createTempDirectory

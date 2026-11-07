@@ -3,7 +3,7 @@ package mc.xalitoria.chat.paper.external.protocol
 import com.comphenix.protocol.reflect.StructureModifier
 import com.comphenix.protocol.wrappers.WrappedChatComponent
 import com.comphenix.protocol.wrappers.WrappedDataWatcher
-import mc.xalitoria.util.message.*
+import com.xalitoria.util.message.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TranslatableComponent
 import net.kyori.adventure.text.TranslationArgument

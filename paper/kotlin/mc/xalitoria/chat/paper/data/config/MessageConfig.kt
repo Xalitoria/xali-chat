@@ -1,10 +1,10 @@
 package mc.xalitoria.chat.paper.data.config
 
 import com.charleskorn.kaml.YamlComment
+import com.xalitoria.util.message.formatArgs
+import com.xalitoria.util.serial.message.State
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import mc.xalitoria.util.message.formatArgs
-import mc.xalitoria.util.serial.message.State
 
 @Serializable
 data class MessageConfig(

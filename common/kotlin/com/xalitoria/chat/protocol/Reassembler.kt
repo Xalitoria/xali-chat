@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.protocol
+package com.xalitoria.chat.protocol
 
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream

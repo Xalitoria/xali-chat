@@ -5,8 +5,8 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
 import mc.xalitoria.chat.paper.external.VanishAPI
-import mc.xalitoria.util.serial.toUuidOrNull
-import mc.xalitoria.util.kotlin.stringFilter
+import com.xalitoria.util.serial.toUuidOrNull
+import com.xalitoria.util.kotlin.stringFilter
 import org.bukkit.command.CommandSender
 import java.util.concurrent.CompletableFuture
 import org.bukkit.OfflinePlayer

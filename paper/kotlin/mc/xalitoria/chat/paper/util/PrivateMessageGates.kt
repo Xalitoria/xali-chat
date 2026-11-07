@@ -1,7 +1,7 @@
 package mc.xalitoria.chat.paper.util
 
-import mc.xalitoria.chat.api.PrivateMessageGate
 import mc.xalitoria.chat.paper.XaliChat
+import net.xalitoria.chat.PrivateMessageGate
 import org.bukkit.entity.Player
 import java.util.UUID
 

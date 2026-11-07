@@ -1,5 +1,9 @@
 package mc.xalitoria.chat.paper.external
 
+import net.milkbowl.vault2.chat.ChatUnlocked
+import net.milkbowl.vault2.helper.context.Context
+import net.milkbowl.vault2.helper.subject.Subject
+import net.milkbowl.vault2.permission.PermissionUnlocked
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 
@@ -10,7 +14,7 @@ import org.bukkit.entity.Player
 object VaultChat {
     data class Info(val prefix: String, val suffix: String, val group: String)
 
-    private val unlockedPresent = classExists("net.milkbowl.vault2.chat.Chat")
+    private val unlockedPresent = classExists("net.milkbowl.vault2.chat.ChatUnlocked")
     private val classicPresent = classExists("net.milkbowl.vault.chat.Chat")
 
     /** `null` when no Vault-family chat provider is installed and enabled. */
@@ -23,12 +27,18 @@ object VaultChat {
 
     private object Unlocked {
         fun info(player: Player): Info? {
-            val chat = Bukkit.getServicesManager().load(net.milkbowl.vault2.chat.Chat::class.java)
+            val chat = Bukkit.getServicesManager().load(ChatUnlocked::class.java)
                 ?.takeIf { it.isEnabled } ?: return null
+            val context = Context.fromWorld(player.world.name)
+            val subject = Subject.player(player.uniqueId, player.name)
+            // The primary group belongs to the permission service of VaultUnlocked, not to the chat one.
+            val group = Bukkit.getServicesManager().load(PermissionUnlocked::class.java)
+                ?.takeIf { it.isEnabled && it.hasGroupSupport() }
+                ?.primaryGroup(context, subject)
             return Info(
-                chat.getPlayerPrefix(player).orEmpty(),
-                chat.getPlayerSuffix(player).orEmpty(),
-                chat.getPrimaryGroup(player).orEmpty(),
+                chat.getPrefixOrNull(context, subject).orEmpty(),
+                chat.getSuffixOrNull(context, subject).orEmpty(),
+                group.orEmpty(),
             )
         }
     }

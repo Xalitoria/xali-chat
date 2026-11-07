@@ -5,7 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.protocol.Message
+import com.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
 import mc.xalitoria.chat.paper.data.log.MessageLogEntry
@@ -15,9 +15,9 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import mc.xalitoria.util.bukkit.hasAnyPermission
-import mc.xalitoria.util.message.*
-import mc.xalitoria.util.serial.toUuidOrNull
+import com.xalitoria.util.bukkit.hasAnyPermission
+import com.xalitoria.util.message.*
+import com.xalitoria.util.serial.toUuidOrNull
 import org.bukkit.command.CommandSender
 import org.bukkit.command.ConsoleCommandSender
 import org.bukkit.entity.Player

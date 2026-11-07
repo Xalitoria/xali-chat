@@ -6,7 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import mc.xalitoria.util.message.fail
+import com.xalitoria.util.message.fail
 import java.util.logging.Logger
 import kotlin.time.Duration
 

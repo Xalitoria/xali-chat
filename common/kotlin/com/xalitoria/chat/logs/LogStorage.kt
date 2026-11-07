@@ -1,4 +1,4 @@
-package mc.xalitoria.chat.logs
+package com.xalitoria.chat.logs
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

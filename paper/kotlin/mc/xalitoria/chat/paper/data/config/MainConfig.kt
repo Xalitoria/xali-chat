@@ -1,12 +1,12 @@
 package mc.xalitoria.chat.paper.data.config
 
 import com.charleskorn.kaml.YamlComment
+import com.xalitoria.chat.announce.RedisSettings
+import com.xalitoria.util.config.DatabaseConfig
+import com.xalitoria.util.config.DatabaseSettings
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import mc.xalitoria.chat.announce.RedisSettings
-import mc.xalitoria.util.config.DatabaseConfig
-import mc.xalitoria.util.config.DatabaseSettings
 
 @Serializable
 data class MainConfig(

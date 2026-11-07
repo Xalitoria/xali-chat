@@ -3,12 +3,12 @@ package mc.xalitoria.chat.paper.command
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.modal.command.XCommand
-import mc.xalitoria.util.message.*
 import org.bukkit.entity.Player
 
 /** `/xview <id>` opens an inventory snapshot from an interactive chat token; it's the click target, not typed by hand. */

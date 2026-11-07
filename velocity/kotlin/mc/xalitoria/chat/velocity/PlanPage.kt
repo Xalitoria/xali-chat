@@ -2,8 +2,8 @@ package mc.xalitoria.chat.velocity
 
 import com.djrapitops.plan.capability.CapabilityService
 import com.djrapitops.plan.extension.ExtensionService
-import mc.xalitoria.chat.logs.LogChanges
-import mc.xalitoria.chat.logs.LogPage
+import com.xalitoria.chat.logs.LogChanges
+import com.xalitoria.chat.logs.LogPage
 import org.slf4j.Logger
 
 /**

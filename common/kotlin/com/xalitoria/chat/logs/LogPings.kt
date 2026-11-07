@@ -1,12 +1,12 @@
-package mc.xalitoria.chat.logs
+package com.xalitoria.chat.logs
 
-import mc.xalitoria.chat.announce.AnnouncementSync
-import mc.xalitoria.chat.announce.RedisSettings
+import com.xalitoria.chat.announce.AnnouncementSync
+import com.xalitoria.chat.announce.RedisSettings
 import redis.clients.jedis.DefaultJedisClientConfig
 import redis.clients.jedis.HostAndPort
 import redis.clients.jedis.Jedis
-import redis.clients.jedis.JedisPooled
 import redis.clients.jedis.JedisPubSub
+import redis.clients.jedis.RedisClient
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -43,7 +43,7 @@ class LogPings(
     private var running = true
 
     @Volatile
-    private var client: JedisPooled? = null
+    private var client: RedisClient? = null
 
     @Volatile
     private var subscription: JedisPubSub? = null
@@ -96,7 +96,7 @@ class LogPings(
                 .password(settings.password.ifEmpty { null })
                 .ssl(settings.ssl)
                 .connectionTimeoutMillis(5_000)
-            val commands = JedisPooled(address, config.socketTimeoutMillis(5_000).build())
+            val commands = RedisClient.builder().hostAndPort(address).clientConfig(config.socketTimeoutMillis(5_000).build()).build()
             try {
                 // Subscribing holds its connection, which waits on the channel for as long as it likes.
                 Jedis(address, config.socketTimeoutMillis(0).build()).use { subscriber ->

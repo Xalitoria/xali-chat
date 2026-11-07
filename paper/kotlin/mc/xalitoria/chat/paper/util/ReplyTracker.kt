@@ -1,6 +1,6 @@
 package mc.xalitoria.chat.paper.util
 
-import mc.xalitoria.util.bukkit.SERVER_UUID
+import com.xalitoria.util.bukkit.SERVER_UUID
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import java.util.UUID

@@ -14,7 +14,7 @@ import mc.xalitoria.chat.paper.util.checkCharacters
 import mc.xalitoria.chat.paper.util.withoutCharacters
 import mc.xalitoria.chat.paper.util.withPlaceholders
 import mc.xalitoria.chat.paper.util.withRelationalPlaceholders
-import mc.xalitoria.util.message.*
+import com.xalitoria.util.message.*
 import net.kyori.adventure.text.Component
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player

@@ -1,8 +1,8 @@
 package mc.xalitoria.chat.paper.util
 
+import com.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.external.VanishAPI
-import mc.xalitoria.chat.protocol.Message
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 

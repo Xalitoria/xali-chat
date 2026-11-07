@@ -3,6 +3,10 @@ package mc.xalitoria.chat.paper.command
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.xalitoria.color.applyColors
+import com.xalitoria.color.componentColors
+import com.xalitoria.util.message.*
+import com.xalitoria.util.serial.toUuidOrNull
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import kotlinx.coroutines.Dispatchers
@@ -17,10 +21,6 @@ import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.*
 import mc.xalitoria.chat.paper.util.DurationParseResult.Invalid
 import mc.xalitoria.chat.paper.util.DurationParseResult.Ok
-import mc.xalitoria.color.applyColors
-import mc.xalitoria.color.componentColors
-import mc.xalitoria.util.message.*
-import mc.xalitoria.util.serial.toUuidOrNull
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.command.CommandSender

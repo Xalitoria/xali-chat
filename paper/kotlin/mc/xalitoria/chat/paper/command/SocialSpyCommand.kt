@@ -9,7 +9,7 @@ import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.util.SpyState
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
-import mc.xalitoria.util.message.*
+import com.xalitoria.util.message.*
 import org.bukkit.entity.Player
 
 object SocialSpyCommand: XCommand(XaliChat.INSTANCE) {

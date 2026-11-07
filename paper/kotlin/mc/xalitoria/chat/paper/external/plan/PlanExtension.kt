@@ -21,9 +21,9 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.db.repository.ChatLogRepository
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import mc.xalitoria.chat.paper.data.db.repository.CommandLogRepository
-import mc.xalitoria.chat.logs.LogFilter
-import mc.xalitoria.chat.logs.LogKind
-import mc.xalitoria.chat.logs.LogRepository
+import com.xalitoria.chat.logs.LogFilter
+import com.xalitoria.chat.logs.LogKind
+import com.xalitoria.chat.logs.LogRepository
 import java.util.UUID
 import kotlin.time.Duration.Companion.days
 

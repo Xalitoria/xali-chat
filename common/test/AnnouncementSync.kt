@@ -1,12 +1,12 @@
 import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlConfiguration
+import com.xalitoria.chat.announce.Action
+import com.xalitoria.chat.announce.Announcement
+import com.xalitoria.chat.announce.AnnouncementStore
+import com.xalitoria.chat.announce.AnnouncementSync
+import com.xalitoria.chat.announce.RedisSettings
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
-import mc.xalitoria.chat.announce.Action
-import mc.xalitoria.chat.announce.Announcement
-import mc.xalitoria.chat.announce.AnnouncementStore
-import mc.xalitoria.chat.announce.AnnouncementSync
-import mc.xalitoria.chat.announce.RedisSettings
 import redis.clients.jedis.Jedis
 import java.nio.file.attribute.FileTime
 import java.util.UUID

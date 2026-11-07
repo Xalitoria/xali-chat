@@ -10,9 +10,9 @@ import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.external.VanishAPI
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
-import mc.xalitoria.util.message.fail
-import mc.xalitoria.util.message.send
-import mc.xalitoria.util.bukkit.SERVER_UUID
+import com.xalitoria.util.message.fail
+import com.xalitoria.util.message.send
+import com.xalitoria.util.bukkit.SERVER_UUID
 import org.bukkit.entity.Player
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import mc.xalitoria.chat.paper.util.runGlobalRepeating

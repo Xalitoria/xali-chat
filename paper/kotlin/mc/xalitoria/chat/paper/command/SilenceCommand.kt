@@ -14,7 +14,7 @@ import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.repository.SettingRepository
 import mc.xalitoria.chat.paper.data.db.tables.Setting
-import mc.xalitoria.util.message.*
+import com.xalitoria.util.message.*
 import org.bukkit.entity.Player
 
 /** `/xsilence <players|broadcasts>` toggles the sender's own setting to hide global chat or broadcasts. */
