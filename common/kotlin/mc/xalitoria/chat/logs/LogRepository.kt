@@ -1,10 +1,5 @@
-package mc.xalitoria.chat.paper.data.db.repository
+package mc.xalitoria.chat.logs
 
-import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
-import mc.xalitoria.chat.paper.data.db.tables.ChatLogTable
-import mc.xalitoria.chat.paper.data.db.tables.CommandLogTable
-import mc.xalitoria.chat.paper.data.db.tables.MessageLogTable
-import mc.xalitoria.chat.paper.data.db.tables.ServerTable
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.LikePattern
@@ -13,12 +8,18 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.compoundAnd
+import org.jetbrains.exposed.v1.core.count
+import org.jetbrains.exposed.v1.core.max
+import org.jetbrains.exposed.v1.core.min
+import org.jetbrains.exposed.v1.core.minus
+import org.jetbrains.exposed.v1.core.rem
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.like
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 import kotlin.uuid.Uuid
@@ -66,26 +67,73 @@ data class LogFilter(
     val until: Long? = null,
 )
 
+/**
+ * How many entries of each log there are per stretch of time, for the timeline over the list: [counts] has the start of
+ * a stretch ([bucketMillis] long, a multiple of it since the epoch) and the number of entries of each kind in it, the
+ * stretches without any left out. [from] and [to] are the first and the last entry's time.
+ */
+class LogHistogram(val from: Long, val to: Long, val bucketMillis: Long, val counts: Map<Long, Map<LogKind, Long>>) {
+    companion object {
+        private val SIZES = listOf(1L, 5, 15, 30, 60, 120, 360, 720, 1440, 2880, 10080).map { it * 60_000 }
+
+        /** The smallest of a few round lengths of time that splits [span] into no more than [buckets] stretches. */
+        fun bucketFor(span: Long, buckets: Int): Long = SIZES.firstOrNull { span / it < buckets } ?: SIZES.last()
+    }
+}
+
+/** A server as the logs know it: the plugin [version] it last reported at [seen] (milliseconds), null when it never has. */
+class ServerInfo(val name: String, val version: String?, val seen: Long?)
+
 object LogRepository {
     /** The oldest first, whatever a search's order is, so a window reads top to bottom. */
     val chronological: Comparator<LogRow> = compareBy<LogRow>({ it.timestampMillis }, { it.kind.ordinal }, { it.id })
 
     /** Up to [limit] matching rows, newest first or oldest first. The same millisecond may repeat across two pages. */
     suspend fun search(filter: LogFilter, limit: Int, newestFirst: Boolean = true): List<LogRow> =
-        dbTransaction { query(filter, limit, newestFirst) }
+        LogStorage.transaction { query(filter, limit, newestFirst) }
 
-    suspend fun find(kind: LogKind, id: Long): LogRow? = dbTransaction { find0(kind, id) }
+    suspend fun find(kind: LogKind, id: Long): LogRow? = LogStorage.transaction { find0(kind, id) }
+
+    /** How many entries of the [LogFilter.kinds] logs match [filter], all of them together. */
+    suspend fun count(filter: LogFilter): Long = LogStorage.transaction { sources.filter { it.kind in filter.kinds }.sumOf { it.total(filter) } }
+
+    /**
+     * The servers with the version they reported. A server on an older release has not added the columns yet, in which
+     * case the names are all there is and every version is unknown.
+     */
+    suspend fun serverInfos(): List<ServerInfo> = try {
+        LogStorage.transaction { ServerTable.selectAll().map { ServerInfo(it[ServerTable.name], it[ServerTable.version], it[ServerTable.seen]) } }
+    } catch (e: Exception) {
+        servers().map { ServerInfo(it, null, null) }
+    }
 
     /** The names of the servers that have written to these logs. */
-    suspend fun servers(): List<String> = dbTransaction { ServerTable.selectAll().map { it[ServerTable.name] } }
+    suspend fun servers(): List<String> = LogStorage.transaction { ServerTable.selectAll().map { it[ServerTable.name] } }
+
+    /**
+     * The entries of [filter] (its [LogFilter.from] and [LogFilter.until] are ignored: the timeline shows all of it) counted
+     * per stretch of time, about [buckets] of them over the whole log. Null when nothing matches.
+     */
+    suspend fun histogram(filter: LogFilter, buckets: Int): LogHistogram? = LogStorage.transaction {
+        val all = filter.copy(from = null, until = null)
+        val chosen = sources.filter { it.kind in all.kinds }
+        val bounds = chosen.mapNotNull { it.bounds(all) }
+        if (bounds.isEmpty()) return@transaction null
+        val from = bounds.minOf { it.first }
+        val to = bounds.maxOf { it.second }
+        val size = LogHistogram.bucketFor(to - from, buckets)
+        val counts = HashMap<Long, MutableMap<LogKind, Long>>()
+        for (source in chosen) source.counts(all, size).forEach { entry -> counts.getOrPut(entry.key) { HashMap() }[source.kind] = entry.value }
+        LogHistogram(from, to, size, counts)
+    }
 
     /**
      * The row [kind]/[id] and the up to [radius] matching rows on each side of it in time, oldest first. The row is in
      * even when it doesn't match [filter]. Unless [filter] names a server the window is the row's own server. Null when
      * there is no such row.
      */
-    suspend fun around(kind: LogKind, id: Long, filter: LogFilter, radius: Int): List<LogRow>? = dbTransaction {
-        val focus = find0(kind, id) ?: return@dbTransaction null
+    suspend fun around(kind: LogKind, id: Long, filter: LogFilter, radius: Int): List<LogRow>? = LogStorage.transaction {
+        val focus = find0(kind, id) ?: return@transaction null
         val scoped = if (filter.server != null) filter else filter.copy(server = focus.server)
         val older = query(scoped.copy(until = focus.timestampMillis), radius + 1, newestFirst = true)
         val newer = query(scoped.copy(from = focus.timestampMillis), radius + 1, newestFirst = false)
@@ -118,7 +166,7 @@ object LogRepository {
     ) {
         fun joined() = table.join(ServerTable, JoinType.LEFT, server, ServerTable.id)
 
-        fun select(filter: LogFilter, limit: Int, newestFirst: Boolean): List<LogRow> {
+        private fun conditions(filter: LogFilter): List<Op<Boolean>> {
             val conditions = mutableListOf<Op<Boolean>>()
             filter.server?.let { conditions += ServerTable.name.lowerCase() eq it.lowercase() }
             filter.player?.let { conditions += byPlayer(runCatching { Uuid.parse(it) }.getOrNull(), it.lowercase()) }
@@ -131,9 +179,40 @@ object LogRepository {
                 val matches: List<Op<Boolean>> = listOfNotNull(this.text, username, target).map { it.lowerCase() like pattern }
                 conditions += matches.reduce { a, b -> a or b }
             }
+            return conditions
+        }
+
+        fun select(filter: LogFilter, limit: Int, newestFirst: Boolean): List<LogRow> {
+            val conditions = conditions(filter)
             val order = if (newestFirst) SortOrder.DESC else SortOrder.ASC
             val selected = if (conditions.isEmpty()) joined().selectAll() else joined().selectAll().where { conditions.compoundAnd() }
             return selected.orderBy(timestamp to order, id to order).limit(limit).map(read)
+        }
+
+        /** The first and the last time of a matching row, null when none match. */
+        fun bounds(filter: LogFilter): Pair<Long, Long>? {
+            val first = timestamp.min()
+            val last = timestamp.max()
+            val conditions = conditions(filter)
+            val row = joined().select(first, last).where { if (conditions.isEmpty()) Op.TRUE else conditions.compoundAnd() }.single()
+            val a = row[first] ?: return null
+            return a to (row[last] ?: a)
+        }
+
+        /** How many rows match. */
+        fun total(filter: LogFilter): Long {
+            val n = id.count()
+            val conditions = conditions(filter)
+            return joined().select(n).where { if (conditions.isEmpty()) Op.TRUE else conditions.compoundAnd() }.single()[n]
+        }
+
+        /** Matching rows per stretch of [size] milliseconds, by the start of the stretch. */
+        fun counts(filter: LogFilter, size: Long): Map<Long, Long> {
+            val start = timestamp - (timestamp % size)
+            val n = id.count()
+            val conditions = conditions(filter)
+            return joined().select(start, n).where { if (conditions.isEmpty()) Op.TRUE else conditions.compoundAnd() }.groupBy(start)
+                .associate { it[start] to it[n] }
         }
     }
 

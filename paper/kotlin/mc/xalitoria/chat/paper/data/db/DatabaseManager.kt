@@ -3,13 +3,14 @@ package mc.xalitoria.chat.paper.data.db
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.data.config.MainConfig
-import mc.xalitoria.chat.paper.data.db.tables.ChatLogTable
-import mc.xalitoria.chat.paper.data.db.tables.CommandLogTable
+import mc.xalitoria.chat.logs.ChatLogTable
+import mc.xalitoria.chat.logs.CommandLogTable
 import mc.xalitoria.chat.paper.data.db.tables.IgnoreTable
-import mc.xalitoria.chat.paper.data.db.tables.MessageLogTable
+import mc.xalitoria.chat.logs.MessageLogTable
 import mc.xalitoria.chat.paper.data.db.repository.ServerRepository
 import mc.xalitoria.chat.paper.data.db.tables.NicknameTable
-import mc.xalitoria.chat.paper.data.db.tables.ServerTable
+import mc.xalitoria.chat.logs.LogStorage
+import mc.xalitoria.chat.logs.ServerTable
 import mc.xalitoria.chat.paper.data.db.tables.SettingTable
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -61,7 +62,7 @@ object DatabaseManager {
             HikariConfig().apply { sqlite(plugin.dataFolder.resolve(LOCAL_NICKNAMES)); poolName = "XaliChat-Nicknames" }
                 .let(::HikariDataSource)
         } else null
-        attach(HikariDataSource(hikariConfig), config, local)
+        attach(HikariDataSource(hikariConfig), config, local, plugin.pluginMeta.version)
     }
 
     /** Connects to a MariaDB server with its own driver or to a MySQL one with Connector/J (see [DatabaseConfig.Mysql.jdbcUrl]). */
@@ -85,12 +86,14 @@ object DatabaseManager {
      * Sets up the schema and this server's row on [source]. The prefix is set first, as table objects read it once.
      * Nicknames go to [localNicknames] when given, otherwise to [source].
      */
-    internal fun attach(source: HikariDataSource, config: MainConfig.Database, localNicknames: HikariDataSource? = null) {
+    internal fun attach(source: HikariDataSource, config: MainConfig.Database, localNicknames: HikariDataSource? = null, version: String? = null) {
         dataSource = source
         require(config.serverName.isNotBlank() && config.serverName.length <= 64) { "database.server-name must be 1-64 characters" }
         tablePrefix = DatabaseConfig.checkPrefix(config.tablePrefix)
         serverName = config.serverName
+        reportedVersion = version
         database = Database.connect(source)
+        LogStorage.use(database, tablePrefix)
         this.localNicknames = localNicknames
         nicknameDatabase = localNicknames?.let { Database.connect(it) } ?: database
         debug("Attaching database: prefix='{0}', server='{1}'", tablePrefix, serverName)
@@ -103,6 +106,7 @@ object DatabaseManager {
                 withLogs = false,
             ).onEach { debug("Schema statement: {0}", it) }.forEach { exec(it) }
             serverId = ServerRepository.register(config.serverName)
+            version?.let { ServerRepository.report(config.serverName, it) }
             debug("Schema ready; this server is id {0}", serverId)
         }
         if (localNicknames != null) transaction(nicknameDatabase) {
@@ -112,7 +116,17 @@ object DatabaseManager {
         }
     }
 
+    /** The plugin version this server tells the database it runs, if it is to. */
+    private var reportedVersion: String? = null
+
+    /** Tells the database this server is still running, so a page can tell the servers in use from those long gone. */
+    suspend fun heartbeat() {
+        val version = reportedVersion ?: return
+        dbTransaction { ServerRepository.report(serverName, version) }
+    }
+
     fun close() {
+        LogStorage.clear()
         if (::dataSource.isInitialized) dataSource.close()
         localNicknames?.close()
         localNicknames = null

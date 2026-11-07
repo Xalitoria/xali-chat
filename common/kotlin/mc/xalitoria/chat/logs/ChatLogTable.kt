@@ -1,10 +1,9 @@
-package mc.xalitoria.chat.paper.data.db.tables
+package mc.xalitoria.chat.logs
 
-import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import org.jetbrains.exposed.v1.core.Table
 
-/** One row per chat message that reached [mc.xalitoria.chat.paper.listener.ChatEvent]'s logging step. */
-object ChatLogTable : Table(DatabaseManager.tableName("chat_log")) {
+/** One row per chat message that reached ChatEvent's logging step. */
+object ChatLogTable : Table(LogStorage.tableName("chat_log")) {
     val id = long("id").autoIncrement()
     /** Null for rows written before servers were tracked. */
     val server = reference("server_id", ServerTable.id).nullable()

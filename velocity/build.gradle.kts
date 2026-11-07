@@ -13,7 +13,13 @@ dependencies {
     api(libs.kaml)
     api(libs.jedis)
     api(kotlinx("serialization-json"))
+    // For the log page, which reads the servers' logs from their database (see LogDatabase).
+    api(kotlinx("coroutines-core"))
+    api(libs.exposed.core)
+    api(libs.exposed.jdbc)
+    api(libs.bundles.database)
     compileOnly(libs.velocity.api)
+    compileOnly(libs.plan) { isTransitive = false }
     compileOnly(libs.premiumvanish.api)
 }
 

@@ -1,7 +1,7 @@
 /*
  * Added to Plan's own page by XaliChat. On the pages that show a plugin's card (a player's plugins on one server, a
  * server's or the network's plugins, all of them or XaliChat's alone) it puts the log, framed from /xalichat/, into
- * XaliChat's card: that player's entries on a player's page, that server's on a server's. A right click on an entry there can open it in its server's
+ * XaliChat's card: that player's entries on a player's page, that server's on a server's, every server's on the network's. A right click on an entry there can open it in its server's
  * log, which is the same frame on that server's plugins page with the entry focused.
  *
  * Nothing here is secret and the log checks who is asking, so a user without access sees no frame at all.
@@ -79,6 +79,24 @@
     return url;
   }
 
+  // The log is the card's table, so Plan's own tables of the latest entries (sortable, but 50 characters and one page of
+  // rows) are hidden while the log is there; without the log, a user who may not see it keeps them.
+  function replaceTables(body) {
+    if (!document.getElementById("xalichat-style")) {
+      var style = document.createElement("style");
+      style.id = "xalichat-style";
+      // Plan's own tables are gone (the log has them), and what is left of the card, its counts, is a row of tiles under the log.
+      style.textContent = [
+        ".xalichat-framed [id^='extension-table-'][id$='-container'], .xalichat-framed > ul.nav:empty { display: none; }",
+        ".xalichat-framed > .card-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .5rem; padding: .75rem 1rem 1rem; }",
+        ".xalichat-framed > .card-body > p.datapoint { display: flex; align-items: center; gap: .5rem; margin: 0; padding: .45rem .75rem; border: 1px solid var(--color-cards-border); border-radius: .35rem; white-space: nowrap; }",
+        ".xalichat-framed > .card-body > p.datapoint .float-end { float: none !important; margin-left: auto; font-weight: 700; font-size: 1.1em; }",
+      ].join("\n");
+      document.head.appendChild(style);
+    }
+    body.classList.add("xalichat-framed");
+  }
+
   async function mount() {
     if (mounting) return;
     var where = scope();
@@ -89,7 +107,7 @@
     var body = found.body;
     var identity = location.pathname + location.search;
     var existing = body.querySelector(":scope > .xalichat-embed");
-    if (existing && existing.dataset.identity === identity) return;
+    if (existing && existing.dataset.identity === identity) { replaceTables(body); return; }
 
     mounting = true;
     try {
@@ -110,9 +128,12 @@
       var frame = document.createElement("iframe");
       frame.title = "XaliChat log";
       frame.src = frameUrl(where, serverName, focus);
-      frame.style.cssText = "width: 100%; height: 540px; border: 1px solid var(--color-cards-border); border-radius: .35rem; background: var(--color-cards-background);";
+      frame.style.cssText = "width: 100%; height: " + Math.max(540, window.innerHeight - 200) + "px; border: 1px solid var(--color-cards-border); border-radius: .35rem; background: var(--color-cards-background);";
       box.appendChild(frame);
-      body.appendChild(box);
+      // The log first, then Plan's counts under it (Plan puts them first, and its tables after).
+      var counts = body.querySelector(":scope > .card-body");
+      if (counts) body.insertBefore(box, counts); else body.appendChild(box);
+      replaceTables(body);
       // Plan lays its cards out in columns by their height, so it is told this one grew.
       setTimeout(function () { window.dispatchEvent(new Event("resize")); }, 50);
       if (focus) card.scrollIntoView({ block: "start" });
@@ -136,7 +157,8 @@
   function schedule() {
     if (queued) return;
     queued = true;
-    requestAnimationFrame(function () { queued = false; mount(); });
+    // Not requestAnimationFrame: it doesn't run in a tab that is in the background, where Plan's page may be loading.
+    setTimeout(function () { queued = false; mount(); }, 50);
   }
   new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
   schedule();

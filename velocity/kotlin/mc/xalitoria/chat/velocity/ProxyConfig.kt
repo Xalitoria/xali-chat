@@ -24,7 +24,51 @@ data class ProxyConfig(
     val crossServerMessages: CrossServerMessages = CrossServerMessages(),
     @YamlComment("Where announcements are shared with the servers. The same host and prefix as theirs. Needs a restart.")
     val redis: RedisSettings = RedisSettings(),
+    @YamlComment("The chat log page in Plan, when Plan's web server runs on this proxy.")
+    val plan: Plan = Plan(),
+    @YamlComment(
+        "The database the servers write their logs to, which the log page reads. The same settings as the servers' config.yml",
+        "(not their server-name). It is only read from, so a user that may only SELECT will do. A restart is needed for a new prefix; the rest is read again by /xalichatv reload.",
+    )
+    val database: Database = Database(),
 ) {
+    @Serializable
+    data class Plan(
+        @YamlComment("Serves the searchable log page at /xalichat on Plan's web server and puts it in XaliChat's card on Plan's plugin pages. Plan's login must be on, and a Plan user needs the xalichat.log permission.")
+        val page: Boolean = true,
+        @YamlComment("Whether Plan users with xalichat.messages may read private messages. Only servers with logging.messages.enable log them.")
+        val messages: Boolean = true,
+    )
+
+    @Serializable
+    data class Database(
+        @YamlComment("Database types: sqlite, mariadb or mysql. Use mariadb for MariaDB: it has its own driver. Servers sharing a network use one of the two server types; sqlite is a file next to the proxy.")
+        val type: String = "mariadb",
+        @SerialName("table-prefix")
+        @YamlComment("As on the servers: letters, digits and underscores.")
+        val tablePrefix: String = "xalichat_",
+        val sqlite: Sqlite = Sqlite(),
+        @YamlComment("MariaDB/MySQL connection settings")
+        val mysql: Mysql = Mysql(),
+    ) {
+        @Serializable
+        data class Sqlite(val filename: String = "xalichat.db")
+
+        @Serializable
+        data class Mysql(
+            val host: String = "localhost",
+            val port: Int = 3306,
+            val database: String = "xalichat",
+            val username: String = "root",
+            val password: String = "",
+            @SerialName("use-ssl")
+            val useSsl: Boolean = false,
+            @SerialName("pool-size")
+            @YamlComment("Connections kept open for the log page; a few are plenty.")
+            val poolSize: Int = 3,
+        )
+    }
+
     @Serializable
     data class CrossServerMessages(
         @YamlComment("false stops them for every server. A server's own config.yml can switch them off for just that server.")

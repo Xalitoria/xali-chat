@@ -12,6 +12,8 @@ import com.velocitypowered.api.scheduler.ScheduledTask
 import mc.xalitoria.chat.announce.AnnouncementStore
 import mc.xalitoria.chat.announce.AnnouncementSync
 import mc.xalitoria.chat.announce.serverMatches
+import mc.xalitoria.chat.logs.LogChanges
+import mc.xalitoria.chat.logs.LogPings
 import mc.xalitoria.chat.protocol.Entry
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.protocol.Message.*
@@ -70,6 +72,16 @@ class XaliChat(
 
     private var config = ProxyConfig()
 
+    /** The servers' log database, while the log page is on. */
+    @Volatile
+    private var logs: LogDatabase? = null
+
+    /** What tells the log page that a server wrote to the logs; see [LogPings]. */
+    private val logChanges = LogChanges()
+    private var pings: LogPings? = null
+    private var planHooked = false
+    private var planPage: PlanPage? = null
+
     /** PremiumVanish, when it is on the proxy. */
     private var vanish: Vanish? = null
 
@@ -112,6 +124,35 @@ class XaliChat(
         }
     }
 
+    /**
+     * Opens the servers' log database and puts the log page on Plan, when Plan is on this proxy and `plan.page` is on;
+     * after closing what a reload finds there. A database that can't be reached leaves the page off, with the reason in the log.
+     */
+    private fun connectLogs() {
+        pings?.close()
+        pings = null
+        logs?.close()
+        logs = null
+        if (!config.plan.page || !proxy.pluginManager.isLoaded("plan")) return
+        try {
+            logs = LogDatabase.connect(config.database, dataDirectory)
+        } catch (e: Exception) {
+            val why = generateSequence<Throwable>(e) { it.cause }.last().message ?: e.javaClass.simpleName
+            logger.warn("Plan is on this proxy, but the log database can't be reached ({}), so the log page is off: check `database` in config.yml", why)
+            return
+        }
+        pings = LogPings(config.redis, "proxy", logChanges, SyncLog()).also { it.start() }
+        if (planHooked) return
+        try {
+            val version = proxy.pluginManager.fromInstance(plugin).flatMap { it.description.version }.orElse("")
+            val page = PlanPage(logger, { logs != null && config.plan.page }, { config.plan.messages }, logChanges, { debug("{}", it) }, version)
+            planHooked = page.hook()
+            planPage = page
+        } catch (e: NoClassDefFoundError) {
+            logger.warn("Plan is loaded but its API couldn't be used, so the log page is off", e)
+        }
+    }
+
     override fun run() {
         findSecret()
 
@@ -131,6 +172,7 @@ class XaliChat(
         }
         rescan()
         connect()
+        connectLogs()
         watch(file)
 
         proxy.channelRegistrar.register(channel)
@@ -147,6 +189,9 @@ class XaliChat(
 
     override fun close() {
         sync?.close()
+        pings?.close()
+        try { planPage?.unhook() } catch (e: NoClassDefFoundError) { /* Plan is gone */ }
+        logs?.close()
     }
 
     /**
@@ -165,6 +210,7 @@ class XaliChat(
         if (secret == null) findSecret()
         rescan()
         connect()
+        connectLogs()
         refreshPlayers()
         logger.info("Reloaded the proxy's XaliChat")
         return read

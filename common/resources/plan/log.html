@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XaliChat log</title>
+<style id="fallback">
+  /* Plan's default theme, for what its own theme can't be read for. The script below replaces these with the real one. */
+  :root {
+    --color-layout-background: #f8f9fc; --color-layout-title: #5a5c69; --color-layout-divider: rgba(0, 0, 0, 0.1);
+    --color-text: #333; --color-secondary: #6c757d; --color-theme: #368F17; --color-themeText: #368F17;
+    --color-cards-background: #ffffff; --color-cards-border: #e3e6f0; --color-cards-header-background: #f8f9fc; --color-cards-header-border: #e3e6f0;
+    --color-forms-input-background: #ffffff; --color-forms-input-border: #dddfeb; --color-forms-input-text: #6e707e;
+    --color-light-blue: #03A9F4; --contrast-color-light-blue: #000000;
+    --color-deep-purple: #673AB7; --contrast-color-deep-purple: #ffffff;
+    --color-orange: #FF9800; --contrast-color-orange: #000000;
+    --color-amber: #FFC107;
+    color: #333;
+  }
+  .night-mode-colors {
+    --color-layout-background: #282a36; --color-layout-title: #eee8d5; --color-layout-divider: #6272a4;
+    --color-text: #eee8d5; --color-theme: #44475a; --color-themeText: #368F17;
+    --color-cards-background: #44475a; --color-cards-border: #6272a4; --color-cards-header-background: #44475a; --color-cards-header-border: #6272a4;
+    --color-forms-input-background: #44475a; --color-forms-input-border: #6272a4; --color-forms-input-text: #eee8d5;
+    color: #eee8d5;
+  }
+</style>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--color-layout-background); color: var(--color-text); --name-l: 36%;
+    font: 14px/1.45 "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  body.night-mode-colors { --name-l: 70%; }
+  button { font: inherit; }
+  .page { height: 100%; padding: 1rem; }
+  .card {
+    display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--color-cards-background);
+    border: 1px solid var(--color-cards-border); border-radius: .35rem; box-shadow: 0 .15rem 1.75rem 0 rgba(58, 59, 69, .15);
+  }
+  header { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: .6rem 1rem; background: var(--color-cards-header-background); border-bottom: 1px solid var(--color-cards-header-border); }
+  h1 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--color-layout-title); white-space: nowrap; }
+  a.back { color: var(--color-themeText); text-decoration: none; font-weight: 700; }
+  a.back:hover { text-decoration: underline; }
+  /* The three logs as one segmented switch, each in its own color. */
+  #toggles { display: inline-flex; }
+  .toggle {
+    display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--color-secondary); background: transparent;
+    border: 1px solid var(--color-forms-input-border); margin-left: -1px; padding: 2px 12px; cursor: pointer; user-select: none;
+  }
+  .toggle:first-child { margin-left: 0; border-radius: .25rem 0 0 .25rem; }
+  .toggle:last-child { border-radius: 0 .25rem .25rem 0; }
+  .toggle:only-child { border-radius: .25rem; }
+  .toggle::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot); opacity: .45; }
+  .toggle:hover { color: var(--color-text); }
+  .toggle.on { color: var(--color-text); background: color-mix(in srgb, var(--dot) 18%, transparent); border-color: var(--dot); position: relative; }
+  .toggle.on::before { opacity: 1; }
+  .toggle[data-kind="c"] { --dot: var(--color-light-blue); }
+  .toggle[data-kind="k"] { --dot: var(--color-deep-purple); }
+  .toggle[data-kind="m"] { --dot: var(--color-orange); }
+  #srv {
+    font: inherit; font-size: 13px; color: var(--color-forms-input-text); background: var(--color-forms-input-background);
+    border: 1px solid var(--color-forms-input-border); border-radius: .25rem; padding: 3px 6px; max-width: 200px; outline: none;
+  }
+  #srv:focus { border-color: var(--color-themeText); }
+  .search { position: relative; flex: 1 1 280px; min-width: 200px; }
+  .search input {
+    width: 100%; font: 13px ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace; color: var(--color-forms-input-text); background: var(--color-forms-input-background);
+    border: 1px solid var(--color-forms-input-border); border-radius: .25rem; padding: 4px 28px 4px 10px; outline: none;
+  }
+  .search input:focus { border-color: var(--color-themeText); }
+  .search button { position: absolute; right: 2px; top: 1px; color: var(--color-secondary); background: none; border: 0; padding: 4px 8px; cursor: pointer; }
+  .search button:hover { color: var(--color-text); }
+  #banner { display: none; align-items: center; gap: 10px; padding: 6px 1rem; background: color-mix(in srgb, var(--color-amber) 22%, transparent); border-bottom: 1px solid var(--color-cards-header-border); }
+  #banner.show { display: flex; }
+  #banner span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; }
+  #banner button { color: var(--color-text); background: none; border: 1px solid var(--color-amber); border-radius: .25rem; padding: 0 10px; cursor: pointer; }
+  #banner button:hover { background: color-mix(in srgb, var(--color-amber) 30%, transparent); }
+  .view { position: relative; flex: 1; min-height: 0; display: flex; }
+  main { flex: 1; min-height: 0; overflow-y: auto; padding: 0; font: 12.5px/1.6 ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace; }
+  .day { position: sticky; top: 0; z-index: 1; padding: 3px 1rem; background: var(--color-cards-header-background); color: var(--color-layout-title); border-bottom: 1px solid var(--color-cards-header-border); font-family: "Nunito", system-ui, sans-serif; font-weight: 700; font-size: 12px; }
+  .day small { font-weight: 400; color: var(--color-secondary); margin-left: 6px; }
+  .row {
+    display: grid; grid-template-columns: 62px 44px minmax(0, 90px) minmax(0, 150px) minmax(0, 1fr); gap: 0 10px; padding: 1px 1rem 1px 10px;
+    border-left: 3px solid var(--tone); background: color-mix(in srgb, var(--tone) 6%, transparent); --tone: transparent;
+  }
+  .row.c { --tone: var(--color-light-blue); }
+  .row.k { --tone: var(--color-deep-purple); }
+  .row.m { --tone: var(--color-orange); }
+  .row:hover { background: color-mix(in srgb, var(--tone) 16%, transparent); }
+  .row.focus { background: color-mix(in srgb, var(--color-amber) 24%, transparent); box-shadow: inset 3px 0 0 var(--color-amber); animation: flash 1.4s ease-out 1; }
+  @keyframes flash { from { background: color-mix(in srgb, var(--color-amber) 60%, transparent); } }
+  .time, .server { color: var(--color-secondary); }
+  .kind { align-self: center; padding: 0 4px; border-radius: .2rem; font-size: 10.5px; font-weight: 700; line-height: 1.5; text-align: center; background: var(--tone); }
+  .kind.c { color: var(--contrast-color-light-blue); }
+  .kind.k { color: var(--contrast-color-deep-purple); }
+  .kind.m { color: var(--contrast-color-orange); }
+  .server, .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who { font-weight: 700; color: hsl(var(--h) 55% var(--name-l)); }
+  .server, .who { cursor: pointer; }
+  .server:hover, .who:hover { text-decoration: underline; }
+  .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .row.k .text { color: color-mix(in srgb, var(--color-deep-purple) 45%, var(--color-text)); }
+  .row.m .text { color: color-mix(in srgb, var(--color-orange) 55%, var(--color-text)); }
+  mark { background: color-mix(in srgb, var(--color-amber) 55%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+  .note { padding: 10px 1rem; color: var(--color-secondary); font-family: "Nunito", system-ui, sans-serif; }
+  .note button { color: var(--color-secondary); background: none; border: 1px dashed var(--color-cards-border); border-radius: .25rem; padding: 2px 10px; cursor: pointer; }
+  .note button:hover { color: var(--color-text); border-color: var(--color-secondary); }
+  #fresh { display: none; position: absolute; top: 34px; left: 50%; transform: translateX(-50%); z-index: 2; cursor: pointer;
+    color: var(--contrast-color-theme, #fff); background: var(--color-themeText); border: 0; border-radius: 99px; padding: 2px 14px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); }
+  #fresh.show { display: block; }
+  footer { display: flex; gap: 14px; padding: 5px 1rem; background: var(--color-cards-header-background); border-top: 1px solid var(--color-cards-header-border); color: var(--color-secondary); font-size: 12px; }
+  #versions { margin-left: auto; cursor: default; }
+  #versions.warn { color: var(--color-amber); }
+  #live::before { content: "\25CF  "; color: #1CC88A; }
+  #live.off::before { color: var(--color-secondary); }
+  #menu { position: fixed; display: none; z-index: 10; min-width: 170px; padding: 3px 0; background: var(--color-cards-background); border: 1px solid var(--color-cards-border); border-radius: .35rem; box-shadow: 0 .15rem 1.75rem 0 rgba(58, 59, 69, .3); }
+  #menu.show { display: block; }
+  #menu div { padding: 4px 14px; cursor: pointer; }
+  #menu div:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+  #menu hr { border: 0; border-top: 1px solid var(--color-cards-border); margin: 3px 0; }
+  /* Framed on a server's or player's page, every entry is that server's: no server column. The network's page and /xalichat have it. */
+  .by-server .row { grid-template-columns: 62px 44px minmax(0, 170px) minmax(0, 1fr); }
+  .embed .page { padding: 0; }
+  .embed .card { border: 0; border-radius: 0; box-shadow: none; }
+  .embed h1, .embed a.back { display: none; }
+  .embed header { padding: .5rem .75rem; }
+  /* The timeline: entries over time, with the stretch picked for the list marked on it. */
+  #timeline { padding: 6px 1rem 4px; background: var(--color-cards-background); border-bottom: 1px solid var(--color-cards-header-border); }
+  #timeline.closed canvas, #timeline.closed #tip { display: none; }
+  .tl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--color-secondary); }
+  .tl-bar .zoom { display: inline-flex; gap: 3px; align-items: center; }
+  .tl-bar button { color: var(--color-secondary); background: color-mix(in srgb, var(--color-text) 8%, transparent); border: 0; border-radius: .2rem; padding: 0 8px; cursor: pointer; }
+  .tl-bar button:hover { color: var(--color-text); }
+  .tl-bar button.on { color: var(--contrast-color-theme, #fff); background: var(--color-themeText); }
+  #range { margin-left: auto; font-family: ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace; color: var(--color-text); }
+  #tlToggle { background: none; padding: 0 4px; }
+  .tl-chart { position: relative; margin-top: 4px; }
+  #tl { display: block; width: 100%; height: 64px; touch-action: none; }
+  #tip { display: none; position: absolute; z-index: 3; pointer-events: none; padding: 2px 8px; white-space: nowrap; font-size: 12px; color: var(--color-text);
+    background: var(--color-cards-background); border: 1px solid var(--color-cards-border); border-radius: .25rem; box-shadow: 0 2px 10px rgba(0, 0, 0, .25); }
+  @media (max-width: 700px) { .row { grid-template-columns: 58px 40px minmax(0, 1fr); } .server, .who { display: none; } }
+</style>
+</head>
+<body>
+<script>try { document.body.classList.toggle("night-mode-colors", (function () { var s = localStorage.getItem("theme.nightMode"); return s && s !== "undefined" ? s !== "false" : matchMedia("(prefers-color-scheme: dark)").matches; })()); } catch (e) {}</script>
+<div class="page"><div class="card">
+<header>
+  <a class="back" id="back" href="/" title="Back to Plan">&larr; Plan</a>
+  <h1>XaliChat log</h1>
+  <span id="toggles"></span>
+  <select id="srv" title="Show one server's entries" aria-label="Server" hidden></select>
+  <div class="search">
+    <input id="q" type="text" maxlength="200" autocomplete="off" spellcheck="false" placeholder="search  &middot;  player:name  server:name">
+    <button id="clear" title="Clear" aria-label="Clear">&#x2715;</button>
+  </div>
+</header>
+<section id="timeline">
+  <div class="tl-bar">
+    <button id="tlToggle" title="Show or hide the timeline" aria-label="Timeline">&#9662;</button>
+    <span class="zoom">Zoom
+      <button data-zoom="12">12h</button><button data-zoom="24">24h</button><button data-zoom="168">7d</button><button data-zoom="720">30d</button><button data-zoom="all" class="on">All</button>
+    </span>
+    <span id="range"></span>
+  </div>
+  <div class="tl-chart"><canvas id="tl" aria-label="Entries over time; drag to pick a stretch of time"></canvas><div id="tip"></div></div>
+</section>
+<div id="banner"><span id="bannerText"></span><button id="unfocus">Back to latest</button></div>
+<div class="view"><button id="fresh"></button><main id="list"></main></div>
+<footer><span id="live">live</span><span id="count"></span><span id="versions"></span><span id="zone"></span></footer>
+</div></div>
+<div id="menu"></div>
+<script id="plan-theme">
+"use strict";
+/*
+ * Plan's own theme, rebuilt the way its web app does it (react/dashboard ThemeStyleCss): the theme Plan has selected for
+ * this browser (theme.name, theme.color, theme.nightMode in localStorage, else Plan's defaults) is fetched from Plan,
+ * turned into the same --color-* and --contrast-color-* variables, and night mode is the same body class. A theme or a
+ * night mode switched in Plan applies here too. Without it the page keeps the default look of the fallback style above.
+ */
+const PlanTheme = (() => {
+  const store = key => { try { const v = localStorage.getItem(key); return v && v !== "undefined" ? v : null; } catch (e) { return null; } };
+  const cache = {};
+  let latest = 0;
+
+  // Any CSS color as [r, g, b, a], as the browser reads it.
+  const probe = document.createElement("span");
+  probe.style.display = "none";
+  function rgba(color) {
+    probe.style.color = "";
+    probe.style.color = color;
+    if (!probe.style.color) return null;
+    document.body.appendChild(probe);
+    const m = getComputedStyle(probe).color.match(/[\d.]+/g);
+    probe.remove();
+    return m && m.length >= 3 ? [+m[0], +m[1], +m[2], m.length > 3 ? +m[3] : 1] : null;
+  }
+  function contrast(color) {
+    const v = rgba(color);
+    return v ? ((0.299 * v[0] + 0.587 * v[1] + 0.114 * v[2]) / 255 < 0.5 ? "#ffffff" : "#000000") : null;
+  }
+  // What Plan shows a color as in night mode: 70 % of the saturation and 95 % of the lightness.
+  function desaturate(color) {
+    const v = rgba(color);
+    if (!v) return color;
+    const r = v[0] / 255, g = v[1] / 255, b = v[2] / 255, max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    let h = 0, s = 0;
+    if (max !== min) {
+      const d = max - min;
+      s = Math.max(0, Math.min(1, l > 0.5 ? d / (2 - max - min) : d / (max + min)));
+      h = (max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4) / 6;
+    }
+    return "hsla(" + h * 360 + ", " + s * 100 * 0.7 + "%, " + l * 95 + "%, " + v[3] + ")";
+  }
+  // {a: {bCd: x}} as {"a-b-cd": x}; arrays are left out.
+  function flatten(obj, prefix) {
+    return Object.entries(obj).reduce((acc, [key, value]) => {
+      const name = prefix ? prefix + "-" + key : key;
+      if (value !== null && typeof value === "object" && !Array.isArray(value)) Object.assign(acc, flatten(value, name));
+      else if (!Array.isArray(value)) acc[name.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()] = value;
+      return acc;
+    }, {});
+  }
+  const reference = value => typeof value === "string" && value.startsWith("var(--color-") ? value.replace("var(--color-", "").replace(")", "") : null;
+
+  function generate(theme, color) {
+    const day = [], night = [];
+    const add = (name, value, list) => {
+      list.push("--color-" + name + ": " + value);
+      const c = contrast(value);
+      if (c) list.push("--contrast-color-" + name + ": " + c);
+    };
+    for (const [name, value] of Object.entries(theme.colors || {})) { add(name, value, day); add(name, desaturate(value), night); }
+    for (const [name, value] of Object.entries(theme.nightColors || {})) { add(name, value, day); add(name, value, night); }
+    const useCases = cases => {
+      const flat = flatten(cases || {}, "");
+      Object.assign(flat, (cases || {}).referenceColors);
+      if (color && color !== "theme") flat.theme = "var(--color-" + color + ")";
+      return flat;
+    };
+    const nightCases = useCases(theme.nightModeUseCases);
+    for (const [key, value] of Object.entries(nightCases)) {
+      const ref = reference(value);
+      if (ref) night.push("--color-" + key + ": var(--color-" + ref + ")", "--contrast-color-" + key + ": var(--contrast-color-" + ref + ")");
+    }
+    for (const [key, value] of Object.entries(useCases(theme.useCases))) {
+      const ref = reference(value);
+      if (!ref) continue;
+      const pair = ["--color-" + key + ": var(--color-" + ref + ")", "--contrast-color-" + key + ": var(--contrast-color-" + ref + ")"];
+      day.push(...pair);
+      if (!(key in nightCases)) night.push(...pair);
+    }
+    return ":root {\n  " + day.join(";\n  ") + ";\n  color: var(--color-text-light);\n}\n.night-mode-colors {\n  " + night.join(";\n  ") + ";\n  color: var(--color-night-text);\n}";
+  }
+
+  async function load(url) {
+    const res = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+    if (!res.ok) throw new Error(url + " answered " + res.status);
+    return res.json();
+  }
+
+  async function apply() {
+    const mine = ++latest;
+    let metadata = null;
+    try { metadata = await load("/v1/metadata"); } catch (e) { /* Plan's defaults below */ }
+    const stored = store("theme.nightMode");
+    const night = stored !== null ? stored !== "false" : metadata ? !!metadata.defaultNightMode : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.body.classList.toggle("night-mode-colors", night);
+
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem("locally-stored-themes") || "[]"); } catch (e) { /* none */ }
+    let name = store("theme.name") || (metadata && metadata.defaultTheme) || "default";
+    if (metadata && Array.isArray(metadata.availableThemes) && !metadata.availableThemes.includes(name) && !local.includes(name)) name = "default";
+    let theme = null;
+    try {
+      if (local.includes(name)) theme = JSON.parse(localStorage.getItem("locally-stored-theme-" + name));
+      if (!theme) theme = cache[name] || (cache[name] = await load("/v1/theme?theme=" + encodeURIComponent(name)));
+      if (theme && !theme.colors && theme.data) theme = theme.data;
+    } catch (e) { return; }
+    if (mine !== latest || !theme || !theme.colors) return;
+
+    // The sidebar color the user picked in Plan, if this theme still offers it.
+    const options = ((night ? theme.nightModeUseCases : theme.useCases) || {}).themeColorOptions || [];
+    const chosen = store("theme.color");
+    let style = document.getElementById("plan-theme-style");
+    if (!style) { style = document.createElement("style"); style.id = "plan-theme-style"; document.head.appendChild(style); }
+    style.textContent = generate(theme, options.includes(chosen) ? chosen : undefined);
+  }
+
+  window.addEventListener("storage", e => { if (e.key === null || e.key.startsWith("theme.") || e.key.startsWith("locally-stored")) apply(); });
+  return { apply, generate };
+})();
+PlanTheme.apply();
+</script>
+<script>
+"use strict";
+const ALLOWED = __KINDS__;
+const NAMES = { c: "Chat", k: "Commands", m: "Messages" };
+const TAGS = { c: "CHAT", k: "CMD", m: "MSG" };
+const PAGE = 50;        // entries per load, at the start and each time the end of the list is reached
+const base = location.pathname.replace(/\/?$/, "/");
+// Framed in a Plan page (?embed=1), the list is that player's (?player=) and that server's (?server=) unless searched otherwise.
+const query = new URLSearchParams(location.search);
+const embed = query.get("embed") === "1";
+const scope = { player: query.get("player") || "", server: query.get("server") || "" };
+if (embed) document.body.classList.add("embed");
+// Everything framed on a server's page is that server's, so the server isn't shown or picked there; the network's page and /xalichat show all of them.
+const byServer = !!scope.server;
+if (byServer) { document.body.classList.add("by-server"); document.getElementById("q").placeholder = "search  \u00b7  player:name"; }
+let picked = "";          // the server picked in the picker, when the page shows more than one
+const api = base + "log";
+const $ = id => document.getElementById(id);
+const list = $("list"), input = $("q"), menu = $("menu"), fresh = $("fresh");
+
+let enabled = new Set();
+try { enabled = new Set(JSON.parse(localStorage.getItem("xalichat.kinds") || "null") || ["c", "k"]); } catch (e) { enabled = new Set(["c", "k"]); }
+enabled = new Set([...enabled].filter(k => ALLOWED.includes(k)));
+if (enabled.size === 0) enabled = new Set(ALLOWED);
+
+let rows = [];            // newest first
+let olderMore = false;    // entries older than the last one shown exist
+let newerMore = false;    // entries newer than the first one shown exist; only while a message is jumped to, otherwise the tail brings them
+let focusKey = query.get("focus");
+let version = null;       // what the server said the logs had reached when it answered, so an unchanged tail can be answered with nothing
+let unseen = 0;           // entries the tail added above while the list was scrolled down
+let range = { from: null, to: null };   // the stretch of time picked on the timeline; null is open: no start, or up to now
+let zoom = "all";                       // which of the zoom buttons made it, if one did
+let hist = null;                        // what the timeline shows: { from, to, size, buckets: [[start, chat, commands, messages]] }
+let histSeq = 0, histTimer = null, drag = null, hover = null;
+let seq = 0, loadingOlder = false, loadingNewer = false, menuRow = null, timer = null, failure = null;
+
+const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+const fullFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "long" });
+$("zone").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+$("back").href = new URL("../", location.origin + base).href;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function shown(r) { return r.kind === "k" ? "/" + r.text : r.text; }
+function who(r) { return r.target ? r.user + " → " + r.target : r.user; }
+function line(r) { return timeFmt.format(r.ts) + "  " + (r.server ? r.server + "  " : "") + who(r) + ": " + shown(r); }
+function hue(name) { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; }
+
+// The words of the search that have to be in an entry, as the server reads them, to mark them in what is shown.
+function needle() {
+  return input.value.trim().split(/\s+/).filter(t => t && !/^(player|server):/i.test(t)).join(" ").toLowerCase();
+}
+function marked(parent, text, find) {
+  const lower = text.toLowerCase();
+  let from = 0, at;
+  while (find && (at = lower.indexOf(find, from)) >= 0) {
+    if (at > from) parent.append(text.slice(from, at));
+    parent.append(el("mark", "", text.slice(at, at + find.length)));
+    from = at + find.length;
+  }
+  if (from < text.length) parent.append(text.slice(from));
+}
+
+// Sets a `key:value` word of the search, or takes it out when `value` is empty, and searches again.
+function setTerm(key, value) {
+  const words = input.value.trim().split(/\s+/).filter(t => t && !t.toLowerCase().startsWith(key + ":"));
+  if (value) words.push(key + ":" + (/\s/.test(value) ? value.replace(/\s+/g, "") : value));
+  input.value = words.join(" ");
+  focusKey = null;
+  reload();
+}
+
+// The server picker: all of them, or one, which is sent as the page's limit so a name with spaces works as it is.
+const picker = $("srv");
+function pickServer(name) {
+  picked = name || "";
+  picker.value = picked;
+  focusKey = null;
+  reload();
+}
+picker.onchange = () => pickServer(picker.value);
+if (!byServer) {
+  fetch(api + "?servers=1", { credentials: "same-origin", cache: "no-store" }).then(r => r.ok ? r.json() : { servers: [] }).then(data => {
+    const names = data.servers || [];
+    if (names.length < 2) return;
+    picker.append(new Option("All servers", ""));
+    for (const n of names) picker.append(new Option(n, n));
+    picker.value = picked;
+    picker.hidden = false;
+  }).catch(() => {});
+}
+
+function buildToggles() {
+  const box = $("toggles");
+  for (const k of ALLOWED) {
+    const b = el("button", "toggle", NAMES[k]);
+    b.dataset.kind = k;
+    b.classList.toggle("on", enabled.has(k));
+    b.onclick = () => {
+      if (enabled.has(k)) { if (enabled.size > 1) enabled.delete(k); } else enabled.add(k);
+      document.querySelectorAll(".toggle").forEach(t => t.classList.toggle("on", enabled.has(t.dataset.kind)));
+      localStorage.setItem("xalichat.kinds", JSON.stringify([...enabled]));
+      reload();
+    };
+    box.appendChild(b);
+  }
+}
+
+// While a message is jumped to the list is that message's server, with no player the frame was limited to and no time picked.
+function params(extra) {
+  const p = new URLSearchParams({ kinds: [...enabled].join(""), q: input.value.trim() });
+  if (scope.player && !focusKey) p.set("scopePlayer", scope.player);
+  if (scope.server) p.set("scopeServer", scope.server);
+  else if (picked) p.set("scopeServer", picked);
+  if (!focusKey) {
+    if (range.from !== null) p.set("since", range.from);
+    if (range.to !== null) p.set("until", range.to);
+  }
+  for (const k in extra) p.set(k, extra[k]);
+  return p;
+}
+
+async function get(extra) {
+  const res = await fetch(api + "?" + params(extra), { credentials: "same-origin", cache: "no-store" });
+  if (!res.ok) throw new Error(res.status === 403 ? "You are not allowed to see this." : "The server answered " + res.status + ".");
+  return res.json();
+}
+
+function dayLabel(ts) {
+  const d = new Date(ts), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  const name = dayFmt.format(ts);
+  return days === 0 ? ["Today", name] : days === 1 ? ["Yesterday", name] : [name, ""];
+}
+
+function end() {
+  const box = el("div", "note");
+  if (failure) box.textContent = failure;
+  else if (rows.length === 0) box.textContent = "Nothing matches.";
+  else if (loadingOlder) box.textContent = "Loading older entries…";
+  else if (olderMore) { const b = el("button", "", "Load " + PAGE + " older"); b.onclick = loadOlder; box.appendChild(b); }
+  else box.textContent = range.from !== null && !focusKey ? "Nothing older in the picked time." : "Start of the log.";
+  return box;
+}
+
+// Rebuilds the list. `above` is how the scroll position follows entries added at the top: kept on the same entry.
+function render(above) {
+  const top = list.scrollTop, height = list.scrollHeight, find = needle();
+  const out = document.createDocumentFragment();
+  if (newerMore) {
+    const note = el("div", "note");
+    const b = el("button", "", loadingNewer ? "Loading newer entries…" : "Load " + PAGE + " newer");
+    b.onclick = loadNewer;
+    note.appendChild(b);
+    out.appendChild(note);
+  }
+  let day = "";
+  for (const r of rows) {
+    const [label, date] = dayLabel(r.ts);
+    if (label !== day) { day = label; const d = el("div", "day", label); if (date) d.append(el("small", "", date)); out.appendChild(d); }
+    const row = el("div", "row " + r.kind + (r.key === focusKey ? " focus" : ""));
+    row.title = fullFmt.format(r.ts);
+    row.dataset.key = r.key;
+    row.style.setProperty("--h", hue(r.user || ""));
+    const name = el("span", "who");
+    marked(name, who(r), find);
+    name.title = "Show only " + r.user;
+    name.dataset.player = r.user;
+    const server = byServer ? null : el("span", "server", r.server || "");
+    if (server && r.server) { server.title = "Show only " + r.server; server.dataset.server = r.server; }
+    const text = el("span", "text");
+    marked(text, shown(r), find);
+    row.append(el("span", "time", timeFmt.format(r.ts)), el("span", "kind", TAGS[r.kind]));
+    if (server) row.append(server);
+    row.append(name, text);
+    out.appendChild(row);
+  }
+  out.appendChild(end());
+  list.textContent = "";
+  list.appendChild(out);
+  list.scrollTop = above ? top + (list.scrollHeight - height) : top;
+  $("count").textContent = rows.length + (rows.length === 1 ? " entry" : " entries") + (olderMore ? "+" : "");
+  fresh.classList.toggle("show", unseen > 0);
+  fresh.textContent = "↑ " + unseen + " new";
+}
+
+function showBanner() {
+  const r = rows.find(x => x.key === focusKey);
+  $("banner").classList.toggle("show", !!focusKey);
+  if (r) $("bannerText").textContent = "Jumped to: " + line(r);
+  $("live").classList.toggle("off", !!focusKey);
+}
+
+// Loads more when the end of the list, or while jumped the top of it, is close.
+function fill() {
+  if (list.scrollHeight - list.scrollTop - list.clientHeight < 300) loadOlder();
+  if (list.scrollTop < 120) loadNewer();
+  if (list.scrollTop < 40 && unseen) { unseen = 0; render(false); }
+}
+
+async function reload() {
+  const mine = ++seq;
+  loadTimeline();
+  loadingOlder = loadingNewer = false;
+  unseen = 0;
+  failure = null;
+  try {
+    const data = focusKey ? await get({ around: focusKey, radius: PAGE / 2 }) : await get({ limit: PAGE });
+    if (mine !== seq) return;
+    rows = data.entries.slice().reverse();
+    if (data.version !== undefined) version = data.version;
+    // A message that is gone, or never was, is dropped for the plain list.
+    if (focusKey && !rows.some(r => r.key === focusKey)) { focusKey = null; return reload(); }
+    olderMore = focusKey ? true : !!data.more;
+    newerMore = !!focusKey;
+    render(false);
+    showBanner();
+    if (focusKey) {
+      const f = list.querySelector(".row.focus");
+      if (f) f.scrollIntoView({ block: "center" });
+    } else list.scrollTop = 0;
+    fill();
+  } catch (e) {
+    if (mine === seq) { rows = []; olderMore = newerMore = false; failure = e.message; render(false); }
+  }
+}
+
+async function loadOlder() {
+  if (loadingOlder || !olderMore || rows.length === 0) return;
+  loadingOlder = true;
+  const mine = seq;
+  render(false);
+  try {
+    const data = await get({ limit: PAGE, before: rows[rows.length - 1].ts });
+    if (mine !== seq) return;
+    const known = new Set(rows.map(r => r.key));
+    const more = data.entries.filter(r => !known.has(r.key));
+    // Nothing but what is shown is left in that millisecond: stop rather than ask for it forever.
+    olderMore = !!data.more && more.length > 0;
+    rows = rows.concat(more.reverse());
+  } catch (e) { failure = e.message; olderMore = false; }
+  if (mine === seq) { loadingOlder = false; render(false); fill(); }
+}
+
+// Newer entries than the ones shown, which is only wanted after jumping to a message in the middle of the log.
+async function loadNewer() {
+  if (loadingNewer || !newerMore || rows.length === 0) return;
+  loadingNewer = true;
+  const mine = seq;
+  try {
+    const data = await get({ limit: PAGE, after: rows[0].ts });
+    if (mine !== seq) return;
+    const known = new Set(rows.map(r => r.key));
+    const more = data.entries.filter(r => !known.has(r.key));
+    newerMore = data.entries.length >= PAGE && more.length > 0;
+    if (more.length) { rows = more.reverse().concat(rows); }
+  } catch (e) { newerMore = false; }
+  if (mine === seq) { loadingNewer = false; render(true); fill(); }
+}
+
+// What was logged since the newest entry shown, added above it.
+async function tail() {
+  if (focusKey || range.to !== null || document.hidden || rows.length === 0 && failure) return;
+  const mine = seq;
+  try {
+    const newest = rows.length ? rows[0].ts : 0;
+    const extra = { limit: PAGE, after: newest };
+    if (version !== null) extra.v = version;
+    const data = await get(extra);
+    if (mine !== seq || focusKey) return;
+    if (data.version !== undefined) version = data.version;
+    const known = new Set(rows.map(r => r.key));
+    const more = data.entries.filter(r => !known.has(r.key));
+    if (more.length === 0) return;
+    // More than a page happened in between: start over rather than leave a gap.
+    if (data.entries.length >= PAGE) { reload(); return; }
+    const scrolled = list.scrollTop > 40;
+    rows = more.reverse().concat(rows);
+    if (scrolled) unseen += more.length;
+    render(scrolled);
+    clearTimeout(histTimer);
+    histTimer = setTimeout(loadTimeline, 2000);
+  } catch (e) { /* keep what is shown */ }
+}
+
+// ---- The timeline
+
+const tl = $("tl"), tip = $("tip"), timeline = $("timeline");
+const HOUR = 3600000;
+const KIND_VARS = { c: "--color-light-blue", k: "--color-deep-purple", m: "--color-orange" };
+const shortDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const monthYear = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
+
+async function loadTimeline() {
+  const mine = ++histSeq;
+  try {
+    const res = await fetch(api + "?" + params({ hist: 1 }), { credentials: "same-origin", cache: "no-store" });
+    if (!res.ok || mine !== histSeq) return;
+    const data = await res.json();
+    hist = data.buckets.length ? data : null;
+    drawTimeline();
+  } catch (e) { /* the timeline stays as it was */ }
+}
+
+// The time the timeline shows: the first entry to the end of the last one's stretch.
+function domain() { return hist ? [hist.from, hist.to + hist.size] : [Date.now() - 24 * HOUR, Date.now()]; }
+function selection() {
+  const [t0, t1] = domain();
+  const d = drag ? drag.draft : range;
+  return [d.from === null ? t0 : Math.max(t0, d.from), d.to === null ? t1 : Math.min(t1, d.to)];
+}
+function colorOf(name, fallback) { return getComputedStyle(document.body).getPropertyValue(name).trim() || fallback; }
+
+function tickLabel(t, span) {
+  if (span < 2 * 24 * HOUR) return timeFmt.format(t).slice(0, 5);
+  return span < 150 * 24 * HOUR ? shortDay.format(t) : monthYear.format(t);
+}
+
+function drawTimeline() {
+  const dpr = window.devicePixelRatio || 1, w = tl.clientWidth, h = tl.clientHeight;
+  if (!w || timeline.classList.contains("closed")) { updateRange(); return; }
+  if (tl.width !== Math.round(w * dpr) || tl.height !== Math.round(h * dpr)) { tl.width = Math.round(w * dpr); tl.height = Math.round(h * dpr); }
+  const c = tl.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, w, h);
+  const [t0, t1] = domain(), plot = h - 14, x = t => (t - t0) / (t1 - t0) * w;
+  const text = colorOf("--color-secondary", "#6c757d");
+  c.font = "11px Nunito, system-ui, sans-serif";
+  c.fillStyle = text; c.strokeStyle = colorOf("--color-cards-border", "#ccc"); c.lineWidth = 1;
+  c.beginPath(); c.moveTo(0, plot + .5); c.lineTo(w, plot + .5); c.stroke();
+  if (!hist) { c.textBaseline = "middle"; c.fillText("No entries", 4, plot / 2); updateRange(); return; }
+
+  const peak = Math.max(1, ...hist.buckets.map(b => b[1] + b[2] + b[3]));
+  const bar = Math.max(1, hist.size / (t1 - t0) * w - 1);
+  const colors = ["c", "k", "m"].map(kind => colorOf(KIND_VARS[kind], "#888"));
+  for (const b of hist.buckets) {
+    let y = plot;
+    colors.forEach((color, i) => {
+      if (!b[i + 1]) return;
+      const height = Math.max(2, b[i + 1] / peak * (plot - 4));
+      c.fillStyle = color;
+      c.fillRect(x(b[0]), y - height, bar, height);
+      y -= height;
+    });
+  }
+  // What is outside the picked stretch is dimmed, and its two ends have handles.
+  const [a, z] = selection(), xa = x(a), xz = x(z);
+  c.fillStyle = colorOf("--color-cards-background", "#fff"); c.globalAlpha = .62;
+  c.fillRect(0, 0, xa, plot); c.fillRect(xz, 0, w - xz, plot);
+  c.globalAlpha = 1;
+  const edge = colorOf("--color-themeText", "#368F17");
+  c.fillStyle = edge; c.globalAlpha = .18; c.fillRect(xa, 0, xz - xa, plot); c.globalAlpha = 1;
+  c.fillRect(xa - 1, 0, 2, plot); c.fillRect(xz - 1, 0, 2, plot);
+  c.fillRect(xa - 3, plot / 2 - 9, 6, 18); c.fillRect(xz - 3, plot / 2 - 9, 6, 18);
+
+  c.fillStyle = text; c.textBaseline = "alphabetic";
+  const n = Math.max(2, Math.floor(w / 110));
+  for (let i = 0; i < n; i++) {
+    const t = t0 + (t1 - t0) * (i + .5) / n, label = tickLabel(t, t1 - t0);
+    c.textAlign = "center"; c.fillText(label, x(t), h - 2);
+  }
+  c.textAlign = "start";
+  updateRange();
+}
+
+function updateRange() {
+  const [a, z] = selection(), span = z - a;
+  const fmt = new Intl.DateTimeFormat(undefined, span < 3 * 24 * HOUR ? { dateStyle: "medium", timeStyle: "short" } : { dateStyle: "medium" });
+  const open = !drag && range.from === null && range.to === null;
+  $("range").textContent = open ? "All time" : fmt.format(a) + " \u2192 " + (!drag && range.to === null ? "now" : fmt.format(z));
+  document.querySelectorAll("[data-zoom]").forEach(b => b.classList.toggle("on", !drag && b.dataset.zoom === zoom));
+}
+
+// Picks a stretch of time for the list: both ends null is all of it. An end at the edge of the log is left open.
+function pick(from, to, by) {
+  const [t0, t1] = domain();
+  if (from !== null && from <= t0) from = null;
+  if (to !== null && to >= t1 - (hist ? hist.size / 2 : 0)) to = null;
+  // Whole milliseconds, which is all the server reads.
+  range = { from: from === null ? null : Math.floor(from), to: to === null ? null : Math.ceil(to) };
+  zoom = by;
+  drawTimeline();
+}
+function pickAndLoad(from, to, by) { focusKey = null; pick(from, to, by); reload(); }
+
+function atPointer(e) { const r = tl.getBoundingClientRect(); return { x: e.clientX - r.left, w: r.width }; }
+
+tl.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  const { x, w } = atPointer(e), [t0, t1] = domain(), t = v => t0 + v / w * (t1 - t0);
+  const [a, z] = selection(), xa = (a - t0) / (t1 - t0) * w, xz = (z - t0) / (t1 - t0) * w;
+  const mode = Math.abs(x - xa) < 8 ? "from" : Math.abs(x - xz) < 8 ? "to" : x > xa && x < xz && (range.from !== null || range.to !== null) ? "move" : "new";
+  drag = { mode, x0: x, t0: t(x), start: [a, z], draft: { from: range.from, to: range.to }, moved: false };
+  try { tl.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is gone already */ }
+  tip.style.display = "none";
+});
+tl.addEventListener("pointermove", e => {
+  const { x, w } = atPointer(e), [t0, t1] = domain(), t = t0 + x / w * (t1 - t0);
+  if (!drag) {
+    const [a, z] = selection(), xa = (a - t0) / (t1 - t0) * w, xz = (z - t0) / (t1 - t0) * w;
+    tl.style.cursor = Math.abs(x - xa) < 8 || Math.abs(x - xz) < 8 ? "ew-resize" : x > xa && x < xz && (range.from !== null || range.to !== null) ? "grab" : "crosshair";
+    showTip(x, t);
+    return;
+  }
+  if (Math.abs(x - drag.x0) > 3) drag.moved = true;
+  if (!drag.moved) return;
+  const d = drag.draft;
+  if (drag.mode === "new") { d.from = Math.min(drag.t0, t); d.to = Math.max(drag.t0, t); }
+  else if (drag.mode === "from") d.from = Math.min(t, drag.start[1] - (hist ? hist.size : HOUR));
+  else if (drag.mode === "to") d.to = Math.max(t, drag.start[0] + (hist ? hist.size : HOUR));
+  else {
+    const shift = Math.max(t0 - drag.start[0], Math.min(t1 - drag.start[1], t - drag.t0));
+    d.from = drag.start[0] + shift; d.to = drag.start[1] + shift;
+  }
+  drawTimeline();
+});
+tl.addEventListener("pointerup", e => {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (d.moved) { pickAndLoad(d.draft.from, d.draft.to, ""); return; }
+  // A click on a bar picks that stretch; on an empty part, all of the time.
+  const { x, w } = atPointer(e), [t0, t1] = domain(), t = t0 + x / w * (t1 - t0);
+  const b = hist && hist.buckets.find(k => t >= k[0] && t < k[0] + hist.size);
+  if (b && (range.from !== b[0] || range.to !== b[0] + hist.size)) pickAndLoad(b[0], b[0] + hist.size, ""); else pickAndLoad(null, null, "all");
+});
+tl.addEventListener("pointercancel", () => { drag = null; drawTimeline(); });
+tl.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+tl.addEventListener("dblclick", () => pickAndLoad(null, null, "all"));
+
+function showTip(x, t) {
+  const b = hist && hist.buckets.find(k => t >= k[0] && t < k[0] + hist.size);
+  if (!b) { tip.style.display = "none"; return; }
+  const span = hist.size < 24 * HOUR ? { dateStyle: "medium", timeStyle: "short" } : { dateStyle: "medium" };
+  const parts = [["Chat", b[1]], ["Commands", b[2]], ["Messages", b[3]]].filter(p => p[1] && ALLOWED.includes(p[0] === "Chat" ? "c" : p[0] === "Commands" ? "k" : "m")).map(p => p[1] + " " + p[0].toLowerCase());
+  tip.textContent = new Intl.DateTimeFormat(undefined, span).format(b[0]) + "  \u00b7  " + parts.join(", ");
+  tip.style.display = "block";
+  tip.style.left = Math.max(0, Math.min(x + 12, tl.clientWidth - tip.offsetWidth)) + "px";
+  tip.style.top = "-4px";
+}
+
+document.querySelectorAll("[data-zoom]").forEach(b => b.onclick = () => {
+  if (b.dataset.zoom === "all") pickAndLoad(null, null, "all");
+  else pickAndLoad(Date.now() - +b.dataset.zoom * HOUR, null, b.dataset.zoom);
+});
+$("tlToggle").onclick = () => {
+  timeline.classList.toggle("closed");
+  try { localStorage.setItem("xalichat.timeline", timeline.classList.contains("closed") ? "closed" : "open"); } catch (e) { /* not remembered */ }
+  drawTimeline();
+};
+try { if (localStorage.getItem("xalichat.timeline") === "closed") timeline.classList.add("closed"); } catch (e) { /* open */ }
+window.addEventListener("resize", drawTimeline);
+
+// Jumps to a message: the log around it on its server, from every player and of the enabled logs, whatever was searched.
+let pickedBeforeJump = "";
+function jumpTo(r) {
+  pick(null, null, "all");
+  if (!focusKey) pickedBeforeJump = picked;
+  focusKey = r.key;
+  input.value = "";
+  if (!byServer) { picked = r.server || ""; picker.value = picked; }
+  reload();
+}
+function unfocus() {
+  if (!focusKey) return;
+  focusKey = null;
+  input.value = "";
+  if (!byServer) { picked = pickedBeforeJump; picker.value = picked; }
+  reload();
+}
+
+function openMenu(e) {
+  const row = e.target.closest(".row");
+  if (!row) { closeMenu(); return; }
+  e.preventDefault();
+  const r = menuRow = rows.find(x => x.key === row.dataset.key);
+  menu.textContent = "";
+  const item = (label, fn) => { const d = el("div", "", label); d.onclick = () => { closeMenu(); fn(); }; menu.appendChild(d); };
+  if (r.key === focusKey) item("Back to latest", unfocus); else item("Jump to message", () => jumpTo(r));
+  if (r.user) item("Show only " + r.user, () => setTerm("player", r.user));
+  if (r.server && !byServer && picker.options.length) item("Show only " + r.server, () => pickServer(r.server));
+  if (embed && r.server && (scope.player || r.server !== scope.server)) {
+    item("Open in " + r.server + " log", () => parent.postMessage({ xalichat: "open", key: r.key, server: r.server }, location.origin));
+  }
+  menu.appendChild(document.createElement("hr"));
+  item("Copy line", () => navigator.clipboard && navigator.clipboard.writeText(line(r)));
+  item("Copy text", () => navigator.clipboard && navigator.clipboard.writeText(shown(r)));
+  menu.classList.add("show");
+  menu.style.left = Math.max(4, Math.min(e.clientX, innerWidth - menu.offsetWidth - 4)) + "px";
+  menu.style.top = Math.max(4, Math.min(e.clientY, innerHeight - menu.offsetHeight - 4)) + "px";
+}
+function closeMenu() { menu.classList.remove("show"); }
+
+list.addEventListener("contextmenu", openMenu);
+list.addEventListener("click", e => {
+  const p = e.target.closest(".who"), s = e.target.closest(".server");
+  if (p && p.dataset.player) setTerm("player", p.dataset.player);
+  else if (s && s.dataset.server && picker.options.length) pickServer(s.dataset.server);
+});
+document.addEventListener("click", closeMenu);
+document.addEventListener("scroll", closeMenu, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") { if (menu.classList.contains("show")) closeMenu(); else unfocus(); } });
+list.addEventListener("scroll", fill, { passive: true });
+fresh.onclick = () => { unseen = 0; list.scrollTop = 0; render(false); };
+
+input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { focusKey = null; reload(); }, 250); });
+$("clear").onclick = () => { input.value = ""; input.focus(); focusKey = null; reload(); };
+$("unfocus").onclick = unfocus;
+
+// The plugin versions: this server's and the proxy's on a server's page, the proxy's and those of the servers in use on the network's.
+async function showVersions() {
+  const out = $("versions");
+  try {
+    const res = await fetch(api + "?versions=1", { credentials: "same-origin", cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    const host = data.host || {}, servers = data.servers || [];
+    const parts = [], all = new Set(), tip = [];
+    if (byServer) {
+      const mine = servers.find(s => s.name.toLowerCase() === scope.server.toLowerCase());
+      if (host.proxy) {
+        if (mine && mine.version) { parts.push("Server " + mine.version); all.add(mine.version); tip.push(mine.name + " " + mine.version); }
+        if (host.version) { parts.push("Proxy " + host.version); all.add(host.version); tip.push("Proxy " + host.version); }
+      } else if (host.version) { parts.push("Plugin " + host.version); }
+    } else {
+      if (host.proxy && host.version) { parts.push("Proxy " + host.version); all.add(host.version); tip.push("Proxy " + host.version); }
+      const groups = new Map();
+      for (const s of servers) if (s.active && s.version) { (groups.get(s.version) || groups.set(s.version, []).get(s.version)).push(s.name); all.add(s.version); }
+      const versions = [...groups.keys()].sort().reverse();
+      if (versions.length) parts.push("Servers " + versions.map(v => v + (groups.get(v).length > 1 ? " \u00d7" + groups.get(v).length : "")).join(", "));
+      for (const v of versions) tip.push(v + ": " + groups.get(v).join(", "));
+      if (!parts.length && host.version) parts.push("Plugin " + host.version);
+    }
+    out.textContent = parts.length ? "XaliChat " + parts.join(" \u00b7 ") : "";
+    out.title = (all.size > 1 ? "More than one version is in use.\n" : "") + tip.join("\n");
+    out.classList.toggle("warn", all.size > 1);
+  } catch (e) { out.textContent = ""; }
+}
+
+input.value = query.get("q") || "";
+buildToggles();
+showVersions();
+setInterval(showVersions, 5 * 60 * 1000);
+reload();
+setInterval(tail, 3000);
+</script>
+</body>
+</html>

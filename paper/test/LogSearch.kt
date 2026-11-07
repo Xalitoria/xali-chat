@@ -8,15 +8,16 @@ import mc.xalitoria.chat.logs.LogChanges
 import mc.xalitoria.chat.paper.data.config.MainConfig
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
-import mc.xalitoria.chat.paper.data.db.repository.LogFilter
-import mc.xalitoria.chat.paper.data.db.repository.LogKind
-import mc.xalitoria.chat.paper.data.db.repository.LogRepository
+import mc.xalitoria.chat.logs.LogFilter
+import mc.xalitoria.chat.logs.LogHistogram
+import mc.xalitoria.chat.logs.LogKind
+import mc.xalitoria.chat.logs.LogRepository
 import mc.xalitoria.chat.paper.data.db.repository.ServerRepository
-import mc.xalitoria.chat.paper.data.db.tables.ChatLogTable
-import mc.xalitoria.chat.paper.data.db.tables.CommandLogTable
-import mc.xalitoria.chat.paper.data.db.tables.MessageLogTable
-import mc.xalitoria.chat.paper.external.plan.LogPage
-import mc.xalitoria.chat.paper.external.plan.SearchSyntax
+import mc.xalitoria.chat.logs.ChatLogTable
+import mc.xalitoria.chat.logs.CommandLogTable
+import mc.xalitoria.chat.logs.MessageLogTable
+import mc.xalitoria.chat.logs.LogPage
+import mc.xalitoria.chat.logs.SearchSyntax
 import org.jetbrains.exposed.v1.jdbc.insert
 import java.io.File
 import java.util.UUID
@@ -226,6 +227,99 @@ class LogSearch {
         assertEquals(emptyList(), texts(tail(1)))
         // The first read of a page (no `after`) always reads.
         assertEquals(2, texts(json(page.resolve(get("/xalichat/log?kinds=c&v=1", LogPage.VIEW)).get())).size)
+    }
+
+    @Test
+    fun theLogsAreCountedPerKindServerAndTime() {
+        chat(1_000, steve, "Steve", "a"); chat(2_000, steve, "Steve", "b"); chat(3_000, alex, "Alex", "c", other)
+        command(2_500, steve, "Steve", "home")
+        whisper(4_000, steve, "Steve", alex, "Alex", "hi")
+        fun count(vararg kinds: LogKind, server: String? = null, from: Long? = null) =
+            runBlocking { LogRepository.count(LogFilter(kinds.toSet(), server = server, from = from)) }
+        assertEquals(3, count(LogKind.CHAT))
+        assertEquals(2, count(LogKind.CHAT, server = "survival"))
+        assertEquals(1, count(LogKind.CHAT, server = "creative"))
+        assertEquals(2, count(LogKind.CHAT, from = 2_000))
+        assertEquals(1, count(LogKind.COMMAND))
+        assertEquals(1, count(LogKind.MESSAGE, server = "survival"))
+        assertEquals(0, count(LogKind.MESSAGE, server = "creative"))
+        assertEquals(5, count(*LogKind.entries.toTypedArray()))
+    }
+
+    @Test
+    fun theVersionsOfTheServersInUseAreAnswered() {
+        runBlocking { dbTransaction { ServerRepository.report("survival", "0.10.1") } }
+        val body = json(LogPage({ true }, { true }, host = LogPage.Host(proxy = true, version = "0.10.2")).resolve(get("/xalichat/log?versions=1", LogPage.VIEW)).get())
+        assertEquals(true, body["host"].asJsonObject["proxy"].asBoolean)
+        assertEquals("0.10.2", body["host"].asJsonObject["version"].asString)
+        val servers = body["servers"].asJsonArray.associate { it.asJsonObject["name"].asString to it.asJsonObject }
+        assertEquals("0.10.1", servers["survival"]!!["version"].asString)
+        assertEquals(true, servers["survival"]!!["active"].asBoolean)
+        // one that has never reported is listed, with no version (the field is left out of the answer) and not in use
+        assertNull(servers["creative"]!!.get("version")?.takeUnless { it.isJsonNull })
+        assertEquals(false, servers["creative"]!!["active"].asBoolean)
+    }
+
+    @Test
+    fun thePageListsTheServersThatHaveWritten() {
+        val body = json(page().resolve(get("/xalichat/log?servers=1", LogPage.VIEW)).get())
+        assertEquals(listOf("creative", "survival"), body["servers"].asJsonArray.map { it.asString })
+    }
+
+    @Test
+    fun aStretchOfTimePicksTheListAndPagesStayInsideIt() {
+        (1L..9L).forEach { chat(it * 1000, steve, "Steve", "m$it") }
+        fun get(query: String) = json(page().resolve(get("/xalichat/log?kinds=c$query", LogPage.VIEW)).get())
+        assertEquals(listOf("m3", "m4", "m5"), texts(get("&since=3000&until=5000")))
+        // Older than the first page of the stretch, but not older than its start.
+        assertEquals(listOf("m3", "m4"), texts(get("&since=3000&until=5000&before=4000")))
+        assertTrue(get("&since=3000&limit=2")["more"].asBoolean)
+        assertFalse(get("&since=8000&until=9000&limit=2")["more"].asBoolean)
+        // The tail never goes back before the start, an earlier `after` is lifted to it.
+        assertEquals(listOf("m8", "m9"), texts(get("&since=8000&after=1000")))
+    }
+
+    @Test
+    fun theTimelineCountsEachLogPerStretchWhateverTimeIsPicked() {
+        val hour = 3_600_000L
+        chat(0, steve, "Steve", "a")
+        chat(10 * 60_000, steve, "Steve", "b")
+        command(hour + 5, steve, "Steve", "c")
+        chat(5 * hour, alex, "Alex", "d", server = other)
+        val all = runBlocking { LogRepository.histogram(LogFilter(), 120) }!!
+        assertEquals(0, all.from)
+        assertEquals(5 * hour, all.to)
+        // 5 hours over at most 120 stretches: five minutes each.
+        assertEquals(300_000L, all.bucketMillis)
+        assertEquals(mapOf(LogKind.CHAT to 1L), all.counts[10 * 60_000])
+        assertEquals(mapOf(LogKind.COMMAND to 1L), all.counts[hour])
+        assertEquals(4L, all.counts.values.sumOf { it.values.sum() })
+        // The picked time doesn't thin out the timeline; the logs and the search do.
+        assertEquals(4L, runBlocking { LogRepository.histogram(LogFilter(from = hour, until = hour + 10), 120) }!!.counts.values.sumOf { it.values.sum() })
+        val chatOnly = runBlocking { LogRepository.histogram(LogFilter(setOf(LogKind.CHAT), server = "survival"), 120) }!!
+        assertEquals(2L, chatOnly.counts.values.sumOf { it.values.sum() })
+        assertEquals(10 * 60_000, chatOnly.to)
+        assertNull(runBlocking { LogRepository.histogram(LogFilter(text = "nothing like it"), 120) })
+        // Long logs get bigger stretches, no more than the asked number of them.
+        assertEquals(60_000L, LogHistogram.bucketFor(60_000L * 119, 120))
+        assertEquals(300_000L, LogHistogram.bucketFor(60_000L * 120, 120))
+        assertEquals(7 * 86_400_000L, LogHistogram.bucketFor(Long.MAX_VALUE / 2, 120))
+    }
+
+    @Test
+    fun theTimelineIsAnAnswerOfThePageAndFollowsItsKindsAndSearch() {
+        chat(0, steve, "Steve", "hello")
+        command(120_000, steve, "Steve", "home")
+        fun hist(query: String) = json(page().resolve(get("/xalichat/log?hist=1$query", LogPage.VIEW)).get())
+        val both = hist("&kinds=ck")
+        assertEquals(0, both["from"].asLong)
+        assertEquals(120_000, both["to"].asLong)
+        assertEquals(60_000, both["size"].asLong)
+        assertEquals(listOf(listOf(0L, 1L, 0L, 0L), listOf(120_000L, 0L, 1L, 0L)), both["buckets"].asJsonArray.map { row -> row.asJsonArray.map { it.asLong } })
+        assertEquals(1, hist("&kinds=k")["buckets"].asJsonArray.size())
+        assertEquals(0, hist("&kinds=ck&q=nothing")["buckets"].asJsonArray.size())
+        // Private messages are for those who may see them.
+        assertEquals(0, hist("&kinds=m")["buckets"].asJsonArray.size())
     }
 
     @Test

@@ -1,9 +1,8 @@
 package mc.xalitoria.chat.paper.external.plan
 
 import com.djrapitops.plan.capability.CapabilityService
-import com.djrapitops.plan.delivery.web.ResolverService
-import com.djrapitops.plan.delivery.web.ResourceService
 import com.djrapitops.plan.extension.ExtensionService
+import mc.xalitoria.chat.logs.LogPage
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.util.message.fail
@@ -27,7 +26,7 @@ object PlanHook {
                 plugin.logger.warning("This version of Plan can't take extension values and tables; not adding the chat log to its pages.")
                 null
             }
-            val page = plugin.config.data.plan.page && capabilities.hasCapability("PAGE_EXTENSION_RESOLVERS") && capabilities.hasCapability("PAGE_EXTENSION_USER_PERMISSIONS")
+            val page = plugin.config.data.plan.page && LogPage.supported()
             if (plugin.config.data.plan.page && !page) plugin.logger.warning("This version of Plan can't take pages with web permissions; not adding the chat log page.")
             if (extension == null && !page) return false
             capabilities.registerEnableListener { enabled -> if (enabled) register(plugin, extension, page) }
@@ -68,21 +67,9 @@ object PlanHook {
     }
 
     /** Called again after a Plan reload, which may have dropped the resolver. */
-    private fun registerPage(plugin: XaliChat) {
-        val resolvers = ResolverService.getInstance()
-        if (resolvers.getResolver(LogPage.PATH).isPresent) return
-        resolvers.registerResolver("XaliChat", LogPage.PATH, LogPage({ plugin.isEnabled }, { plugin.config.data.logging.messages.enable }, plugin.logChanges))
-        try {
-            resolvers.registerPermissions(LogPage.VIEW, LogPage.VIEW_MESSAGES)
-        } catch (e: Exception) {
-            debug("Plan did not take the log page's permissions: {0}", e)
-        }
-        // The log in XaliChat's card on Plan's plugin pages, which is Plan's own page given a script.
-        if (CapabilityService.getInstance().hasCapability("PAGE_EXTENSION_RESOURCES")) try {
-            ResourceService.getInstance().addScriptsToResource("XaliChat", "index.html", ResourceService.Position.PRE_MAIN_SCRIPT, LogPage.SCRIPT_PATH)
-        } catch (e: Exception) {
-            debug("Plan did not take the log script: {0}", e)
-        }
-        plugin.logger.info("Added the log page to Plan at ${LogPage.PATH}; give Plan users ${LogPage.VIEW} to open it.")
-    }
+    private fun registerPage(plugin: XaliChat) = LogPage.register(
+        { LogPage({ plugin.isEnabled }, { plugin.config.data.logging.messages.enable }, plugin.logChanges, { debug("The log page could not read the database: {0}", it) }, LogPage.Host(proxy = false, version = plugin.pluginMeta.version)) },
+        { plugin.logger.info(it) },
+        { message, error -> debug("$message: {0}", error) },
+    )
 }

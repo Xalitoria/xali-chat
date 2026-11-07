@@ -4,6 +4,7 @@ import com.comphenix.protocol.ProtocolLibrary
 import com.comphenix.protocol.ProtocolManager
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import kotlinx.coroutines.*
+import kotlin.time.Duration.Companion.minutes
 import mc.xalitoria.chat.api.NetworkPlayers
 import mc.xalitoria.chat.paper.command.*
 import mc.xalitoria.chat.paper.concurrent.ProxyMessenger
@@ -98,6 +99,13 @@ class XaliChat : JavaPlugin() {
         }
 
         debug("Connected to the {0} database as server '{1}'", config.data.database.type, config.data.database.serverName)
+        // The version this server runs is in the database, with the time it was last seen: a page shows which versions are in use.
+        scope.launch {
+            while (isActive) {
+                delay(HEARTBEAT)
+                try { DatabaseManager.heartbeat() } catch (e: Exception) { debug("Could not report this server's version: {0}", e) }
+            }
+        }
         logChanges = LogChanges()
         val pings = LogPings(config.data.redis, config.data.database.serverName, logChanges, PingLog()).also { it.start(); logPings = it }
         logs = LogService(this, pings::written)
@@ -214,6 +222,8 @@ class XaliChat : JavaPlugin() {
     }
 
     companion object {
+        /** How often the server reports that it is running; a page counts a server as in use for three times as long. */
+        private val HEARTBEAT = 5.minutes
         internal lateinit var INSTANCE: XaliChat
         internal lateinit var PROTO: ProtocolManager
         private var debugger = { message: String, args: Array<out Any?> -> }

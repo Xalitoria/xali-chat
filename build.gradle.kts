@@ -10,7 +10,7 @@ plugins {
 
 subprojects {
     group = "mc.xalitoria.chat"
-    version = "0.9.0"
+    version = "0.10.1"
 }
 
 tasks.named("build") {
@@ -64,5 +64,7 @@ velocity {
     relocateSources = true
     dependencies {
         register("premiumvanish") { required = false }
+        // Loaded first, so its classes can be seen; the page is registered when Plan's web server enables.
+        register("plan") { required = false }
     }
 }

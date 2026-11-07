@@ -1,15 +1,12 @@
-package mc.xalitoria.chat.paper.external.plan
+package mc.xalitoria.chat.logs
 
+import com.djrapitops.plan.capability.CapabilityService
+import com.djrapitops.plan.delivery.web.ResolverService
+import com.djrapitops.plan.delivery.web.ResourceService
 import com.djrapitops.plan.delivery.web.resolver.Resolver
 import com.djrapitops.plan.delivery.web.resolver.Response
 import com.djrapitops.plan.delivery.web.resolver.request.Request
 import kotlinx.coroutines.runBlocking
-import mc.xalitoria.chat.logs.LogChanges
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.data.db.repository.LogFilter
-import mc.xalitoria.chat.paper.data.db.repository.LogKind
-import mc.xalitoria.chat.paper.data.db.repository.LogRepository
-import mc.xalitoria.chat.paper.data.db.repository.LogRow
 import java.nio.charset.StandardCharsets
 import java.util.Optional
 
@@ -19,8 +16,8 @@ import java.util.Optional
  * `?embed=1`, into XaliChat's card on the pages of a player's plugins and of a server's plugins. Plan's own login decides who gets in: a user needs [VIEW], and [VIEW_MESSAGES] on
  * top of that for private messages. Without Plan's login nobody is known, so nobody gets in.
  *
- * The page and its data come from the database this server is connected to, so every server sharing it is in the list.
- * Plan calls this off the server thread, which is why the database is read directly.
+ * The page and its data come from the database this server or proxy is connected to ([LogStorage]), so every server
+ * sharing it is in the list. Plan calls this off the server thread, which is why the database is read directly.
  */
 class LogPage(
     private val enabled: () -> Boolean,
@@ -28,7 +25,14 @@ class LogPage(
     private val messagesLogged: () -> Boolean,
     /** What tells whether the logs changed, so an unchanged page needn't read them; null reads them every time. */
     private val changes: LogChanges? = null,
+    /** Told of a read that failed, which the page answers with a 500. */
+    private val failed: (Exception) -> Unit = {},
+    /** Which plugin serves the page, for the versions it shows. */
+    private val host: Host = Host(proxy = false, version = ""),
 ) : Resolver {
+    /** The plugin that serves the page: the proxy's, or a server's, at [version]. */
+    class Host(val proxy: Boolean, val version: String)
+
     override fun usedWebPermissions(): Set<String> = setOf(VIEW, VIEW_MESSAGES)
 
     override fun canAccess(request: Request): Boolean = isScript(request) || viewable(request).isNotEmpty()
@@ -78,8 +82,8 @@ class LogPage(
         .build()
 
     /**
-     * The newest entries before `before` (all of them when it is missing), the entries after `after` for the live tail,
-     * or with `around` (a row's key) the window around it. `kinds` and `q` narrow all three, see [SearchSyntax].
+     * The newest entries before `before` (all of them, back to the first one logged, when it is missing), the entries
+     * after `after` for the live tail and for paging towards the present, or with `around` (a row's key) the window around it. `since` and `until` keep to a stretch of time, which `hist` (the counts per stretch for the timeline) ignores. `kinds` and `q` narrow all of them, see [SearchSyntax].
      * `scopePlayer` and `scopeServer` are what a framed page is limited to, which `q` can override; a server that
      * hasn't written to the logs is no limit, as for the proxy. `version` is what [LogChanges] said when the answer was
      * read: asked for what is `after` a time and told the `v` it still is, nothing is read when pings can vouch for it.
@@ -87,7 +91,7 @@ class LogPage(
     private fun data(request: Request, allowed: Set<LogKind>): Response {
         val query = request.query
         fun number(name: String): Long? = query.get(name).orElse(null)?.toLongOrNull()
-        val limit = (number("limit") ?: 150).coerceIn(1, 500).toInt()
+        val limit = (number("limit") ?: PAGE_SIZE).coerceIn(1, 200).toInt()
         val terms = SearchSyntax.parse(query.get("q").orElse("")!!.take(200))
         val version = changes?.version
         if (changes != null && changes.trusted && number("after") != null && number("v") == version) {
@@ -96,22 +100,30 @@ class LogPage(
         }
         val kinds = query.get("kinds").orElse("")!!.mapNotNullTo(HashSet()) { LogKind.of(it) }.filterTo(HashSet()) { it in allowed }
         return try {
+            if (query.get("versions").isPresent) return versions()
             val servers = runBlocking { LogRepository.servers() }
+            // The servers that have written to the logs, for the picker of a page that shows more than one.
+            if (query.get("servers").isPresent) return Response.builder().setHeader("Cache-Control", "no-store")
+                .setJSONContent(mapOf("servers" to servers.sortedBy { it.lowercase() })).build()
             val scopeServer = query.get("scopeServer").orElse(null)?.take(64)?.let { name -> servers.firstOrNull { it.equals(name, ignoreCase = true) } }
-            val filter = LogFilter(kinds, terms.player ?: query.get("scopePlayer").orElse(null)?.take(64), terms.server ?: scopeServer, terms.text)
+            // `since` and `until` are the stretch of time picked on the timeline; a window around an entry ignores them.
+            val since = number("since")
+            val until = number("until")
+            val filter = LogFilter(kinds, terms.player ?: query.get("scopePlayer").orElse(null)?.take(64), terms.server ?: scopeServer, terms.text, since, until)
+            if (query.get("hist").isPresent) return histogram(filter)
             val around = query.get("around").orElse(null)
             val result = when {
                 kinds.isEmpty() -> Result(emptyList(), false)
                 around != null -> {
                     val focus = LogKind.of(around.firstOrNull() ?: ' ')?.takeIf { it in allowed }
                     val id = around.drop(1).toLongOrNull()
-                    val window = if (focus != null && id != null) runBlocking { LogRepository.around(focus, id, filter, (number("radius") ?: 25).coerceIn(1, 200).toInt()) } else null
+                    val window = if (focus != null && id != null) runBlocking { LogRepository.around(focus, id, filter.copy(from = null, until = null), (number("radius") ?: 25).coerceIn(1, 200).toInt()) } else null
                     Result(window ?: emptyList(), false)
                 }
-                number("after") != null -> Result(runBlocking { LogRepository.search(filter.copy(from = number("after")), limit, newestFirst = false) }, false)
+                number("after") != null -> Result(runBlocking { LogRepository.search(filter.copy(from = maxOf(number("after")!!, since ?: Long.MIN_VALUE)), limit, newestFirst = false) }, false)
                 else -> {
                     // One more than asked shows whether there is anything older.
-                    val found = runBlocking { LogRepository.search(filter.copy(until = number("before")), limit + 1) }
+                    val found = runBlocking { LogRepository.search(filter.copy(until = listOfNotNull(number("before"), until).minOrNull()), limit + 1) }
                     Result(found.take(limit).sortedWith(LogRepository.chronological), found.size > limit)
                 }
             }
@@ -120,9 +132,38 @@ class LogPage(
                 .setJSONContent(mapOf("entries" to result.rows.map { it.toJson() }, "more" to result.more, "version" to version))
                 .build()
         } catch (e: Exception) {
-            debug("The log page could not read the database: {0}", e)
+            failed(e)
             text(500, "The log could not be read.")
         }
+    }
+
+    /**
+     * The plugin versions the page shows: the one serving it, and each server's, with whether it has reported lately
+     * (a server that has is one in use; the others are gone, or on a release that doesn't report).
+     */
+    private fun versions(): Response {
+        val now = System.currentTimeMillis()
+        val servers = runBlocking { LogRepository.serverInfos() }.sortedBy { it.name.lowercase() }.map {
+            mapOf("name" to it.name, "version" to it.version, "active" to (it.seen != null && now - it.seen <= IN_USE_MILLIS))
+        }
+        return Response.builder().setHeader("Cache-Control", "no-store")
+            .setJSONContent(mapOf("host" to mapOf("proxy" to host.proxy, "version" to host.version), "servers" to servers)).build()
+    }
+
+    /** The timeline: how many entries there are over time for the logs and search, whatever time is picked. */
+    private fun histogram(filter: LogFilter): Response = try {
+        val found = if (filter.kinds.isEmpty()) null else runBlocking { LogRepository.histogram(filter, BUCKETS) }
+        val body: Map<String, Any?> = if (found == null) mapOf("buckets" to emptyList<Any>()) else mapOf(
+            "from" to found.from,
+            "to" to found.to,
+            "size" to found.bucketMillis,
+            // [start, chat, commands, messages] per stretch that has an entry
+            "buckets" to found.counts.toSortedMap().map { entry -> listOf(entry.key) + LogKind.entries.map { entry.value[it] ?: 0L } },
+        )
+        Response.builder().setHeader("Cache-Control", "no-store").setJSONContent(body).build()
+    } catch (e: Exception) {
+        failed(e)
+        text(500, "The log could not be read.")
     }
 
     private fun text(status: Int, message: String): Response = Response.builder()
@@ -154,6 +195,15 @@ class LogPage(
 
         /** Where the page is on Plan's web server. */
         const val PATH = "/xalichat"
+
+        /** How many entries a request brings when it doesn't say; the page asks for this many at a time. */
+        private const val PAGE_SIZE = 50L
+
+        /** A server reports its version every few minutes; one that has in this long is running. */
+        const val IN_USE_MILLIS = 15 * 60_000L
+
+        /** About how many bars the timeline has. */
+        private const val BUCKETS = 120
         private const val PAGE = "xalichat"
         private const val DATA = "log"
         private const val SCRIPT = "plan.js"
@@ -167,8 +217,37 @@ class LogPage(
         /** What Plan's own page loads; see `plan.js`. */
         val SCRIPT_SOURCE by lazy { resource(SCRIPT) }
 
-        /** Where that script is, for [PlanHook] to add to Plan's page. */
+        /** Where that script is, for [register] to add to Plan's page. */
         const val SCRIPT_PATH = "$PATH/$SCRIPT"
+
+        /**
+         * Puts [page] on Plan's web server and its script on Plan's own page, unless it is there already; called again
+         * after a Plan reload, which may have dropped it. Both a server and the proxy do this, as the web server is on
+         * whichever one Plan's UI runs on. Throws what Plan throws when it is not ready.
+         */
+        fun register(page: () -> LogPage, info: (String) -> Unit, debug: (String, Throwable) -> Unit) {
+            val resolvers = ResolverService.getInstance()
+            // Plan matches resolvers by prefix, so a resolver of its own (the root page) answers for any path: only ours counts.
+            if (resolvers.getResolver(PATH).orElse(null) is LogPage) return
+            resolvers.registerResolver("XaliChat", PATH, page())
+            try {
+                resolvers.registerPermissions(VIEW, VIEW_MESSAGES)
+            } catch (e: Exception) {
+                debug("Plan did not take the log page's permissions", e)
+            }
+            // The log in XaliChat's card on Plan's plugin pages, which is Plan's own page given a script. PRE_CONTENT is the
+            // position every Plan version with a React page applies to index.html (5.8 has no <script></script> placeholder
+            // for PRE_MAIN_SCRIPT to replace); the script waits for the page's cards on its own.
+            if (CapabilityService.getInstance().hasCapability("PAGE_EXTENSION_RESOURCES")) try {
+                ResourceService.getInstance().addScriptsToResource("XaliChat", "index.html", ResourceService.Position.PRE_CONTENT, SCRIPT_PATH)
+            } catch (e: Exception) {
+                debug("Plan did not take the log script", e)
+            }
+            info("Added the log page to Plan at $PATH; give Plan users $VIEW to open it.")
+        }
+
+        /** Whether this Plan can take the page: resolvers with web permissions. */
+        fun supported(): Boolean = CapabilityService.getInstance().let { it.hasCapability("PAGE_EXTENSION_RESOLVERS") && it.hasCapability("PAGE_EXTENSION_USER_PERMISSIONS") }
     }
 }
 
@@ -176,7 +255,7 @@ class LogPage(
  * The search bar: `player:<name or uuid>` and `server:<name>` narrow the list, everything else is text that has to be
  * in a message, command or name. A keyword without a value yet, as when it is still being typed, is left out.
  */
-internal object SearchSyntax {
+object SearchSyntax {
     class Terms(val player: String?, val server: String?, val text: String?)
 
     fun parse(input: String): Terms {

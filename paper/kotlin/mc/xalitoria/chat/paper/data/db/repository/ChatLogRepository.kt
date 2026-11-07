@@ -3,8 +3,8 @@ package mc.xalitoria.chat.paper.data.db.repository
 import mc.xalitoria.chat.paper.data.log.ChatLogEntry
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
-import mc.xalitoria.chat.paper.data.db.tables.ChatLogTable
-import mc.xalitoria.chat.paper.data.db.tables.ServerTable
+import mc.xalitoria.chat.logs.ChatLogTable
+import mc.xalitoria.chat.logs.ServerTable
 import org.jetbrains.exposed.v1.core.LikePattern
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.SortOrder

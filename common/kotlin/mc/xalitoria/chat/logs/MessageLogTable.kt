@@ -1,13 +1,12 @@
-package mc.xalitoria.chat.paper.data.db.tables
+package mc.xalitoria.chat.logs
 
-import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import org.jetbrains.exposed.v1.core.Table
 
 /**
  * One row per private message that was delivered, on the sender's server. The console has no id, and neither does a
  * receiver on another server, which the sender's server only knows by name.
  */
-object MessageLogTable : Table(DatabaseManager.tableName("message_log")) {
+object MessageLogTable : Table(LogStorage.tableName("message_log")) {
     val id = long("id").autoIncrement()
     /** Null for rows written before servers were tracked. */
     val server = reference("server_id", ServerTable.id).nullable()

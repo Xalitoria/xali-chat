@@ -21,9 +21,9 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.db.repository.ChatLogRepository
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import mc.xalitoria.chat.paper.data.db.repository.CommandLogRepository
-import mc.xalitoria.chat.paper.data.db.repository.LogFilter
-import mc.xalitoria.chat.paper.data.db.repository.LogKind
-import mc.xalitoria.chat.paper.data.db.repository.LogRepository
+import mc.xalitoria.chat.logs.LogFilter
+import mc.xalitoria.chat.logs.LogKind
+import mc.xalitoria.chat.logs.LogRepository
 import java.util.UUID
 import kotlin.time.Duration.Companion.days
 
@@ -52,6 +52,9 @@ class PlanExtension(private val plugin: XaliChat) : DataExtension {
 
     @BooleanProvider(text = "Commands shown", conditionName = COMMANDS, hidden = true)
     fun commandsShown(): Boolean = settings.commands && plugin.config.data.logging.commands.database
+
+    @BooleanProvider(text = "Private messages shown", conditionName = MESSAGES, hidden = true)
+    fun messagesShown(): Boolean = plugin.config.data.logging.messages.enable
 
     @Conditional(CHAT)
     @Tab("Chat")
@@ -97,6 +100,22 @@ class PlanExtension(private val plugin: XaliChat) : DataExtension {
     @NumberProvider(text = "Commands (24 h)", description = "Run on this server in the last day", iconName = "terminal", iconFamily = Family.SOLID, iconColor = Color.DEEP_PURPLE, priority = 19)
     fun commandsToday(): Long = query(0) { CommandLogRepository.count(null, System.currentTimeMillis() - 1.days.inWholeMilliseconds) }
 
+    @Conditional(MESSAGES)
+    @NumberProvider(text = "Private messages (24 h)", description = "Sent from this server in the last day", iconName = "envelope", iconFamily = Family.SOLID, iconColor = Color.ORANGE, priority = 18)
+    fun messagesToday(): Long = query(0) { LogRepository.count(LogFilter(setOf(LogKind.MESSAGE), server = DatabaseManager.serverName, from = System.currentTimeMillis() - 1.days.inWholeMilliseconds)) }
+
+    @Conditional(CHAT)
+    @NumberProvider(text = "Chat messages (total)", description = "Logged on this server since the log began", iconName = "comment", iconFamily = Family.SOLID, iconColor = Color.LIGHT_BLUE, priority = 17)
+    fun chatMessagesTotal(): Long = query(0) { ChatLogRepository.count(null, null) }
+
+    @Conditional(COMMANDS)
+    @NumberProvider(text = "Commands (total)", description = "Logged on this server since the log began", iconName = "terminal", iconFamily = Family.SOLID, iconColor = Color.DEEP_PURPLE, priority = 16)
+    fun commandsTotal(): Long = query(0) { CommandLogRepository.count(null, null) }
+
+    @Conditional(MESSAGES)
+    @NumberProvider(text = "Private messages (total)", description = "Sent from this server since the log began", iconName = "envelope", iconFamily = Family.SOLID, iconColor = Color.ORANGE, priority = 15)
+    fun messagesTotal(): Long = query(0) { LogRepository.count(LogFilter(setOf(LogKind.MESSAGE), server = DatabaseManager.serverName)) }
+
     @Conditional(CHAT)
     @TableProvider(tableColor = Color.LIGHT_BLUE)
     fun latestChatOnServer(): Table {
@@ -138,6 +157,7 @@ class PlanExtension(private val plugin: XaliChat) : DataExtension {
     private companion object {
         const val CHAT = "xalichat-chat"
         const val COMMANDS = "xalichat-commands"
+        const val MESSAGES = "xalichat-messages"
         const val MAX = 50
     }
 }
