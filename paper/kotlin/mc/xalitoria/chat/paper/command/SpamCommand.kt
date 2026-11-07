@@ -14,8 +14,9 @@ import mc.xalitoria.util.message.fail
 import mc.xalitoria.util.message.send
 import mc.xalitoria.util.bukkit.SERVER_UUID
 import org.bukkit.entity.Player
-import org.bukkit.scheduler.BukkitRunnable
-import org.bukkit.scheduler.BukkitTask
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
+import mc.xalitoria.chat.paper.util.runGlobalRepeating
+import mc.xalitoria.chat.paper.util.runOwned
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import mc.xalitoria.chat.paper.data.constants.Permissions
@@ -25,7 +26,7 @@ object SpamCommand: XCommand(XaliChat.INSTANCE) {
     override val mainCommand = "xspam"
     override val aliases: List<String> = ["spam"]
     private val spammer: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
-    private val activeTasks = ConcurrentHashMap<UUID, BukkitTask>()
+    private val activeTasks = ConcurrentHashMap<UUID, ScheduledTask>()
 
     override fun builder(): LiteralArgumentBuilder<CommandSourceStack> = Commands
         .literal(mainCommand)
@@ -78,7 +79,7 @@ object SpamCommand: XCommand(XaliChat.INSTANCE) {
             )
 
     /** Replaces any spam task already running for [uuid] so `say` calls never stack timers. */
-    fun playMassSay(plugin: XaliChat, uuid: UUID, message: String, repeat: Int): BukkitTask? {
+    fun playMassSay(plugin: XaliChat, uuid: UUID, message: String, repeat: Int): ScheduledTask? {
         if (message.isEmpty() || repeat <= 0) {
             debug("Spam for {0} ignored: empty message or repeat <= 0", uuid)
             return null
@@ -88,27 +89,27 @@ object SpamCommand: XCommand(XaliChat.INSTANCE) {
         spammer.add(uuid)
         activeTasks.remove(uuid)?.cancel()
 
-        val task = object : BukkitRunnable() {
-            override fun run() {
-                if (uuid !in spammer) {
-                    cancel()
-                    return
-                }
-                if (--remaining <= 0) {
-                    activeTasks.remove(uuid)
-                    spammer.remove(uuid)
-                    debug("Spam for {0} finished", uuid)
-                    cancel()
-                    return
-                }
-                players.removeFirstOrNull()?.let {
-                    if (it.isOnline && !VanishAPI.isVanished(it)) it.chat(message)
-                    return
-                }
-                players.clear()
-                players.addAll(plugin.server.onlinePlayers)
+        // One player says it per tick. The count and the list belong to the task, which runs on one thread; a player
+        // speaks on the thread that owns them, which on Folia is not that one.
+        val task = plugin.runGlobalRepeating(1) { task ->
+            if (uuid !in spammer) {
+                task.cancel()
+                return@runGlobalRepeating
             }
-        }.runTaskTimer(plugin, 0, 1)
+            if (--remaining <= 0) {
+                activeTasks.remove(uuid)
+                spammer.remove(uuid)
+                debug("Spam for {0} finished", uuid)
+                task.cancel()
+                return@runGlobalRepeating
+            }
+            players.removeFirstOrNull()?.let {
+                it.runOwned(plugin) { if (it.isOnline && !VanishAPI.isVanished(it)) it.chat(message) }
+                return@runGlobalRepeating
+            }
+            players.clear()
+            players.addAll(plugin.server.onlinePlayers)
+        }
 
         activeTasks[uuid] = task
         return task

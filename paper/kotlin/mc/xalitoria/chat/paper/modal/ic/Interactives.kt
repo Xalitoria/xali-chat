@@ -5,6 +5,7 @@ import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.util.message.PLAIN
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.TextReplacementConfig
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
@@ -84,7 +85,7 @@ class Interactives(private val plugin: XaliChat) : Listener {
 
     fun Component.expandTokens(tokens: Map<Token, Component>): Component =
         tokens.entries.fold(this) { message, entry ->
-            message.replaceText { it.matchLiteral(entry.key.text).replacement(entry.value) }
+            message.replaceText(TextReplacementConfig.builder().matchLiteral(entry.key.text).replacement(entry.value).build())
         }
 
     /** Opens snapshot [id] for [viewer]; false when it has expired. */

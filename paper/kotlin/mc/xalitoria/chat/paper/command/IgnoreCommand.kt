@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.util.runOwned
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.concurrent.KeyedMutex
@@ -16,7 +17,6 @@ import kotlinx.coroutines.launch
 import mc.xalitoria.util.message.*
 import mc.xalitoria.chat.paper.command.argument.KnownPlayerArgument
 import mc.xalitoria.chat.paper.util.nameOrId
-import mc.xalitoria.util.bukkit.runTask
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 import java.util.UUID
@@ -70,13 +70,13 @@ object IgnoreCommand: XCommand(XaliChat.INSTANCE) {
                             toggled
                         }
                         debug("{0} {1} {2}", sender.name, if (nowIgnoring) "now ignores" else "no longer ignores", target.nameOrId)
-                        plugin.runTask {
+                        sender.runOwned(plugin) {
                             if (nowIgnoring) sender pass msg.added(target.nameOrId)
                             else sender pass msg.removed(target.nameOrId)
                         }
                     } catch (e: Exception) {
                         plugin.logger.fail("Failed to toggle ignore for ${sender.name} -> ${target.nameOrId}", e)
-                        plugin.runTask { sender fail unexpectedError }
+                        sender.runOwned(plugin) { sender fail unexpectedError }
                     }
                 }
                 Command.SINGLE_SUCCESS

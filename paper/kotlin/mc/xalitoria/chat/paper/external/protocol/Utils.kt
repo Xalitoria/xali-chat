@@ -5,10 +5,53 @@ import com.comphenix.protocol.wrappers.WrappedChatComponent
 import com.comphenix.protocol.wrappers.WrappedDataWatcher
 import mc.xalitoria.util.message.*
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.TranslatableComponent
+import net.kyori.adventure.text.TranslationArgument
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.inventory.ItemStack
 import java.util.Optional
 
-internal fun Component.protocolor(): Component = MINI.serialize(this).toComponent()
+private const val CLICK_TOKEN = "xalicolorclick"
+
+/**
+ * Colors the component by a round trip through MiniMessage. Click values are not text to color: a copied or suggested
+ * command must reach the player as it was, so they leave the component for the round trip and come back after it.
+ */
+internal fun Component.protocolor(): Component {
+    val clicks = ArrayList<ClickEvent<*>>()
+    val shielded = mapClicks { event ->
+        // Only a text value (a command, a link, text to copy) is shielded; a page number or a callback has nothing to color.
+        if (event.payload() !is ClickEvent.Payload.Text) return@mapClicks event
+        clicks += event
+        @Suppress("UNCHECKED_CAST")
+        ClickEvent.clickEvent(event.action() as ClickEvent.Action<ClickEvent.Payload.Text>, ClickEvent.Payload.string("$CLICK_TOKEN${clicks.lastIndex}"))
+    }
+    if (clicks.isEmpty()) return MINI.serialize(this).toComponent()
+    return MINI.serialize(shielded).toComponent().mapClicks { event ->
+        val value = (event.payload() as? ClickEvent.Payload.Text)?.value()
+        val index = value?.removePrefix(CLICK_TOKEN)?.takeIf { value != it }?.toIntOrNull()
+        clicks.getOrNull(index ?: return@mapClicks event) ?: event
+    }
+}
+
+/** Every click event in the component, its children, its hover text and its translation arguments, mapped. */
+private fun Component.mapClicks(transform: (ClickEvent<*>) -> ClickEvent<*>): Component {
+    var result = this
+    clickEvent()?.let { result = result.clickEvent(transform(it)) }
+    hoverEvent()?.let { hover ->
+        val value = hover.value()
+        if (hover.action() == HoverEvent.Action.SHOW_TEXT && value is Component)
+            result = result.hoverEvent(HoverEvent.showText(value.mapClicks(transform)))
+    }
+    if (children().isNotEmpty()) result = result.children(children().map { it.mapClicks(transform) })
+    if (result is TranslatableComponent && result.arguments().isNotEmpty())
+        result = result.arguments(result.arguments().map { argument ->
+            val value = argument.value()
+            if (value is Component) TranslationArgument.component(value.mapClicks(transform)) else argument
+        })
+    return result
+}
 
 internal fun WrappedChatComponent.protocolor(): WrappedChatComponent {
     val rawJson = json

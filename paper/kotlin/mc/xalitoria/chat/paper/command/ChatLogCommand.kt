@@ -19,7 +19,6 @@ import mc.xalitoria.chat.paper.util.DurationParseResult.Invalid
 import mc.xalitoria.chat.paper.util.DurationParseResult.Ok
 import mc.xalitoria.color.applyColors
 import mc.xalitoria.color.componentColors
-import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.util.message.*
 import mc.xalitoria.util.serial.toUuidOrNull
 import net.kyori.adventure.text.Component
@@ -125,10 +124,10 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
                 try {
                     ChatLogFiles.write(file, search.results)
                     debug("{0} exported {1} entries to {2}", sender.name, search.results.size, file)
-                    plugin.runTask { sender send msg.exported(search.results.size, "$EXPORT_FOLDER/${file.fileName}") }
+                    sender.runOwned(plugin) { sender send msg.exported(search.results.size, "$EXPORT_FOLDER/${file.fileName}") }
                 } catch (e: Exception) {
                     plugin.logger.fail("Chat log export failed", e)
-                    plugin.runTask { sender fail unexpectedError }
+                    sender.runOwned(plugin) { sender fail unexpectedError }
                 }
             }
         }
@@ -147,15 +146,15 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
             try {
                 val entries = ChatLogFiles.read(file)
                 debug("{0} imported {1}: {2}", sender.name, file, entries?.let { "${it.size} entries" } ?: "file not found")
-                plugin.runTask {
-                    if (entries == null) return@runTask sender fail msg.fileMissing(filename)
+                sender.runOwned(plugin) {
+                    if (entries == null) return@runOwned sender fail msg.fileMissing(filename)
                     val search = ChatLogSearch(null, null, null, null, null, entries)
                     ChatLogSessions.put(sender.name, search)
                     render(sender, search, 1)
                 }
             } catch (e: Exception) {
                 plugin.logger.fail("Chat log import failed", e)
-                plugin.runTask { sender fail unexpectedError }
+                sender.runOwned(plugin) { sender fail unexpectedError }
             }
         }
     }
@@ -205,10 +204,10 @@ object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
                     sender.name, playerFilter, sinceInput, textFilter, serverInput ?: server, if (fromDatabase) "database" else "text logs", results.size,
                 )
                 val search = ChatLogSearch(playerFilter, sinceMillis, sinceInput, serverInput, textFilter, results)
-                plugin.runTask { onResults(search) }
+                sender.runOwned(plugin) { onResults(search) }
             } catch (e: Exception) {
                 plugin.logger.fail("Chat log search failed", e)
-                plugin.runTask { sender fail unexpectedError }
+                sender.runOwned(plugin) { sender fail unexpectedError }
             }
         }
     }

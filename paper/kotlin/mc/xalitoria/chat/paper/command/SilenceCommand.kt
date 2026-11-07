@@ -7,13 +7,13 @@ import io.papermc.paper.command.brigadier.Commands
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.util.runOwned
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.repository.SettingRepository
 import mc.xalitoria.chat.paper.data.db.tables.Setting
-import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.util.message.*
 import org.bukkit.entity.Player
 
@@ -45,10 +45,10 @@ object SilenceCommand: XCommand(XaliChat.INSTANCE) {
                         SettingCache.set(sender.uniqueId, setting, if (muted) "true" else null)
                         debug("{0} set {1} to {2}", sender.name, setting, muted)
                         val state = if (setting == Setting.MUTE_PLAYERS) msg.players else msg.broadcasts
-                        plugin.runTask { sender pass state.get(muted) }
+                        sender.runOwned(plugin) { sender pass state.get(muted) }
                     } catch (e: Exception) {
                         plugin.logger.fail("Failed to toggle $label mute for ${sender.name}", e)
-                        plugin.runTask { sender fail unexpectedError }
+                        sender.runOwned(plugin) { sender fail unexpectedError }
                     }
                 }
             }

@@ -10,6 +10,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.util.runOwned
+import mc.xalitoria.chat.paper.util.runOwnedLater
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.constants.Permissions
@@ -20,8 +22,6 @@ import mc.xalitoria.chat.paper.util.nameOrId
 import mc.xalitoria.chat.paper.util.suggestMatching
 import mc.xalitoria.chat.paper.util.visiblePlayerNames
 import mc.xalitoria.util.message.*
-import mc.xalitoria.util.bukkit.runTask
-import mc.xalitoria.util.bukkit.runTaskLater
 import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player
 
@@ -85,13 +85,13 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
                         try {
                             lock.withLock { NicknameRepository.clear(target.uniqueId) }
                             debug("{0} reset the nickname of {1}", sender.name, target.nameOrId)
-                            plugin.runTask {
-                                plugin.server.getPlayer(target.uniqueId)?.applyNickname(null)
+                            plugin.server.getPlayer(target.uniqueId)?.applyNickname(null)
+                            sender.runOwned(plugin) {
                                 if (isSelf) sender pass msg.reset else sender pass msg.resetOther(target.nameOrId)
                             }
                         } catch (e: Exception) {
                             plugin.logger.fail("Failed to reset nickname for ${target.nameOrId}", e)
-                            plugin.runTask { sender fail cmdMsg.unexpectedError }
+                            sender.runOwned(plugin) { sender fail cmdMsg.unexpectedError }
                         }
                     }
                     return@executes Command.SINGLE_SUCCESS
@@ -129,16 +129,16 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
                             if (!taken) NicknameRepository.set(target.uniqueId, nickname, plain.lowercase())
                             !taken
                         }
-                        plugin.runTask {
-                            debug("{0} set the nickname of {1} to '{2}': {3}", sender.name, target.nameOrId, nickname, if (saved) "saved" else "taken")
-                            if (!saved) return@runTask sender fail msg.taken
-                            plugin.server.getPlayer(target.uniqueId)?.applyNickname(nickname)
+                        debug("{0} set the nickname of {1} to '{2}': {3}", sender.name, target.nameOrId, nickname, if (saved) "saved" else "taken")
+                        if (saved) plugin.server.getPlayer(target.uniqueId)?.applyNickname(nickname)
+                        sender.runOwned(plugin) {
+                            if (!saved) return@runOwned sender fail msg.taken
                             if (isSelf) sender pass msg.set(nickname)
                             else sender pass msg.setOther(target.nameOrId, nickname)
                         }
                     } catch (e: Exception) {
                         plugin.logger.fail("Failed to set nickname for ${target.nameOrId}", e)
-                        plugin.runTask { sender fail cmdMsg.unexpectedError }
+                        sender.runOwned(plugin) { sender fail cmdMsg.unexpectedError }
                     }
                 }
                 Command.SINGLE_SUCCESS
@@ -148,14 +148,21 @@ object NicknameCommand: XCommand(XaliChat.INSTANCE) {
     private val cmdMsg get() = XaliChat.INSTANCE.messageConfig.data.commands
     private val msg get() = cmdMsg.nickname
 
-    /** [nickname] was already stripped for whoever set it, so it is shown as stored. */
+    /**
+     * [nickname] was already stripped for whoever set it, so it is shown as stored. Applied on the thread that owns
+     * the player (their region on Folia), so it may be called from any thread.
+     */
     fun Player.applyNickname(nickname: String?) {
+        val plugin = XaliChat.INSTANCE
         val component = nickname?.toComponent()
-        displayName(component)
-        // Another plugin that owns the display name (chat, tab or essentials-style) can write it back; say so in the debug log.
-        XaliChat.INSTANCE.runTaskLater(2) {
-            if (isOnline && displayName() != (component ?: Component.text(this@applyNickname.name)))
-                debug("The display name of {0} was changed by another plugin to '{1}'", this@applyNickname.name, PLAIN.serialize(displayName()))
+        runOwned(plugin) {
+            if (!isOnline) return@runOwned
+            displayName(component)
+            // Another plugin that owns the display name (chat, tab or essentials-style) can write it back; say so in the debug log.
+            runOwnedLater(plugin, 2) {
+                if (isOnline && displayName() != (component ?: Component.text(name)))
+                    debug("The display name of {0} was changed by another plugin to '{1}'", name, PLAIN.serialize(displayName()))
+            }
         }
     }
 }

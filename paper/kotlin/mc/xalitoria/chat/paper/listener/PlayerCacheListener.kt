@@ -8,7 +8,6 @@ import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.repository.IgnoreRepository
 import mc.xalitoria.chat.paper.data.db.repository.SettingRepository
 import mc.xalitoria.chat.paper.data.db.repository.NicknameRepository
-import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
 import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.util.SpyState
@@ -56,7 +55,7 @@ class PlayerCacheListener(private val plugin: XaliChat) : Listener {
             )
             IgnoreCache.load(uuid, data.ignored)
             SettingCache.load(uuid, data.settings)
-            data.nickname?.let { plugin.runTask { if (player.isOnline) player.applyNickname(it) } }
+            data.nickname?.let { player.applyNickname(it) }
         }
     }
 
