@@ -31,11 +31,10 @@ object Permissions {
     const val SET_MUTE_PLAYERS    = "xalichat.setting.mute.players"
     const val SET_MUTE_BROADCASTS = "xalichat.setting.mute.broadcasts"
 
-    const val BYP_IGNORE          = "xalichat.bypass.ignore"
     const val BYP_MSG_IGNORE      = "xalichat.bypass.message.ignore"
     const val BYP_MUTE_PLAYERS    = "xalichat.bypass.mute.players"
     const val BYP_MUTE_BROADCASTS = "xalichat.bypass.mute.broadcasts"
-    const val BYP_FILTER          = "xalichat.bypass.filter"
+    const val BYP_CHARACTERS      = "xalichat.bypass.characters"
 
     const val CMD_ADMIN_SPY_COMMAND = "xalichat.admin.spy.command"
     const val CMD_ADMIN_SPY_SOCIAL  = "xalichat.admin.spy.social"
@@ -44,11 +43,10 @@ object Permissions {
     const val CMD_ADMIN_CHATLOG_EXPORT = "xalichat.admin.chatlog.export"
     const val CMD_ADMIN_CHATLOG_IMPORT = "xalichat.admin.chatlog.import"
     const val CMD_ADMIN_BROADCAST      = "xalichat.admin.broadcast"
+    const val CMD_ADMIN_ALERT_CHARACTERS = "xalichat.admin.alert.characters"
     const val CMD_ADMIN_BROADCAST_GLOBAL = "xalichat.admin.broadcast.global"
     const val CMD_ADMIN_ANNOUNCE        = "xalichat.admin.announce"
     const val CMD_ADMIN_ANNOUNCE_GLOBAL = "xalichat.admin.announce.global"
-
-    const val PING = "xalichat.ping"
 
     const val INTERACTIVE_ITEM      = "xalichat.interactive.item"
     const val INTERACTIVE_INVENTORY = "xalichat.interactive.inventory"

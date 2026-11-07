@@ -16,7 +16,6 @@ import io.papermc.paper.command.brigadier.Commands
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mc.xalitoria.util.bukkit.hasAnyPermission
-import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.util.message.*
 import mc.xalitoria.util.serial.toUuidOrNull
 import org.bukkit.command.CommandSender
@@ -56,6 +55,29 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
             debug("/xmessage denied for {0}: missing xalichat.message", sender.name)
             sender fail noPermission
             return
+        }
+        // Players only: the console may write what it likes.
+        var message = message
+        if (sender is Player) {
+            val messages = cmdMsg.characters
+            when (val check = plugin.checkCharacters(sender, message, privateMessage = true)) {
+                CharacterCheck.Allowed, is CharacterCheck.Alerted -> {}
+                is CharacterCheck.Strip -> {
+                    val stripped = CharacterRule.strip(message, check.remove).trim()
+                    if (stripped.isEmpty()) {
+                        sender fail messages.blocked(check.characters)
+                        return
+                    }
+                    debug("/xmessage from {0} had characters removed: {1}", sender.name, check.characters)
+                    sender warn messages.stripped(check.characters)
+                    message = stripped
+                }
+                is CharacterCheck.Block -> {
+                    debug("/xmessage from {0} blocked for characters: {1}", sender.name, check.characters)
+                    sender fail messages.blocked(check.characters)
+                    return
+                }
+            }
         }
 
         // `@` isn't allowed in a brigadier word, so the console is reached as plain `console` or `server`,
@@ -141,7 +163,7 @@ object MessageCommand: XCommand(XaliChat.INSTANCE) {
                 plugin.scope.launch(Dispatchers.Default) {
                     val ack = plugin.messenger.whisper(sender, proxyName, message)
 
-                    plugin.runTask {
+                    sender.runOwned(plugin) {
                         debug("Proxy whisper to {0}: {1}", proxyName, ack?.status)
                         when (ack?.status) {
                             Message.WhisperAck.Status.DELIVERED -> {

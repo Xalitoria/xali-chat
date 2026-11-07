@@ -5,6 +5,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlin.text.RegexOption.IGNORE_CASE
 
+/**
+ * The unfinished chat filter's phrases. Not loaded by the plugin for now (no `filter.yml` is read or written, and chat is
+ * not checked against it); the tests in `chat/paper/test` still use it. `characters` in `config.yml` is what limits chat.
+ */
 @Serializable
 data class FilterConfig(
     val enabled: Boolean = false,

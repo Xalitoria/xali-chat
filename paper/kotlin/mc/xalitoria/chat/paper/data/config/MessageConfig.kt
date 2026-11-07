@@ -38,7 +38,7 @@ data class MessageConfig(
         val interactive: Interactive = Interactive(),
         val broadcast: Broadcast = Broadcast(),
         val announce: Announce = Announce(),
-        val filter: Filter = Filter(),
+        val characters: Characters = Characters(),
     ) {
         fun help(label: String): String = help.formatArgs(label)
         @Serializable
@@ -210,9 +210,20 @@ data class MessageConfig(
         }
 
         @Serializable
-        data class Filter(
-            val blocked: String = "Your message was blocked for containing a filtered word.",
-        )
+        data class Characters(
+            @SerialName("blocked")
+            private val blocked: String = "Your message wasn't sent: these characters aren't allowed here: {0}",
+            private val stripped: String = "Some characters aren't allowed here ({0}) and were removed from your message.",
+            @SerialName("alert-chat")
+            private val alertChat: String = "&eXaliChat &8> &f{0} &7used characters that aren't allowed in chat: &f{1}",
+            @SerialName("alert-message")
+            private val alertMessage: String = "&eXaliChat &8> &f{0} &7used characters that aren't allowed in a private message: &f{1}",
+        ) {
+            fun alertChat(player: String, characters: String): String = alertChat.formatArgs(player, characters)
+            fun alertMessage(player: String, characters: String): String = alertMessage.formatArgs(player, characters)
+            fun blocked(characters: String): String = blocked.formatArgs(characters)
+            fun stripped(characters: String): String = stripped.formatArgs(characters)
+        }
 
         @Serializable
         data class Interactive(

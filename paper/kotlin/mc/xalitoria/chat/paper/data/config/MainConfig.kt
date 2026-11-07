@@ -36,6 +36,8 @@ data class MainConfig(
     @YamlComment("Where announcements are shared with the other servers and the proxy. Needs a restart.")
     val redis: RedisSettings = RedisSettings(),
     val nickname: Nickname = Nickname(),
+    @YamlComment("Limits what players may type in chat to basic characters. Applies on reload.")
+    val characters: Characters = Characters(),
     @YamlComment("Shows the chat and command log on Plan's player and server pages when Plan is installed. Needs a restart.")
     val plan: Plan = Plan(),
     @YamlComment(
@@ -91,6 +93,29 @@ data class MainConfig(
         @YamlComment("Serves the searchable log page at /xalichat on Plan's web server. Plan's login must be on, and a Plan user needs the xalichat.log permission.")
         val page: Boolean = true,
     )
+
+    @Serializable
+    data class Characters(
+        @YamlComment(
+            "What happens to chat with characters outside ASCII letters, numbers, symbols and spaces (emoji, accents,",
+            "other alphabets, tabs). Characters that plugins such as Nexo add, and private-use glyphs, are never touched.",
+            "allow: nothing (the limit is off). alert: sent as it is, but staff with xalichat.admin.alert.characters and",
+            "the console are told. strip: the characters are removed and the rest is sent (nothing left: refused).",
+            "block: refused, and the sender is told which characters are not allowed. Operators and players with",
+            "xalichat.bypass.characters are never limited. Applies on reload.",
+        )
+        val mode: String = "allow",
+        @YamlComment("Also applies to private messages (/msg and /reply). Alerts never repeat the text of one.")
+        val messages: Boolean = true,
+        @YamlComment("Characters allowed on top of the basic ones, written together: \"éñü\" for accents.")
+        val allow: String = "",
+    ) {
+        enum class Action { ALLOW, ALERT, STRIP, BLOCK }
+
+        /** [mode] as an [Action]; allow when it isn't one of the four (reload says so). */
+        val action: Action get() = Action.entries.firstOrNull { it.name.equals(mode.trim(), ignoreCase = true) } ?: Action.ALLOW
+        val known: Boolean get() = Action.entries.any { it.name.equals(mode.trim(), ignoreCase = true) }
+    }
 
     @Serializable
     data class Nickname(

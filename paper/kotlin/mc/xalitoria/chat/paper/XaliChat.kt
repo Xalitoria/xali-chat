@@ -19,6 +19,7 @@ import mc.xalitoria.chat.paper.external.protocol.*
 import mc.xalitoria.chat.paper.listener.*
 import mc.xalitoria.chat.paper.modal.announce.Announcements
 import mc.xalitoria.chat.paper.modal.ic.*
+import mc.xalitoria.chat.paper.util.CharacterRule
 import mc.xalitoria.chat.paper.util.ProxyPlayers
 import mc.xalitoria.util.config.YamlFile
 import mc.xalitoria.util.message.*
@@ -35,7 +36,9 @@ class XaliChat : JavaPlugin() {
     lateinit var messageConfig: YamlFile<MessageConfig>
         private set
 
-    lateinit var filterConfig: YamlFile<FilterConfig>
+    /** What `characters` lets through, built from its settings at every reload. */
+    @Volatile
+    var characterRule = CharacterRule("")
         private set
 
     lateinit var messenger: ProxyMessenger
@@ -84,7 +87,6 @@ class XaliChat : JavaPlugin() {
             MessageConfig.serializer(),
             ::MessageConfig,
         )
-        filterConfig = YamlFile(dataPath.resolve("filter.yml"), FilterConfig.serializer(), ::FilterConfig)
         reload()
 
         try {
@@ -177,8 +179,8 @@ class XaliChat : JavaPlugin() {
         if (::logs.isInitialized) applyPacketListeners()
         messageConfig.load()
         messageConfig.save()
-        filterConfig.load()
-        filterConfig.save()
+        characterRule = CharacterRule(config.data.characters.allow)
+        if (!config.data.characters.known) logger.warning("characters.mode '${config.data.characters.mode}' is not one of allow, alert, strip or block; characters are not limited.")
         // Not created yet on the first reload; starting it loads the file itself.
         if (::announcements.isInitialized) announcements.reload()
         logger.pass(messageConfig.data.commands.reload.pass)
