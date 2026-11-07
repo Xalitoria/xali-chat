@@ -72,6 +72,11 @@ sealed interface Message {
         }
     }
 
+    /** `RELOAD`: the proxy asks the server to reload XaliChat, as `/xalichat reload` does there. Has no fields. */
+    class Reload : Message {
+        override fun encode() = write("RELOAD") {}
+    }
+
     companion object {
         /** Reads a message written by [encode]; null for a subchannel this version doesn't know. */
         fun decode(bytes: ByteArray): Message? = DataInputStream(ByteArrayInputStream(bytes)).run {
@@ -85,6 +90,7 @@ sealed interface Message {
                 "WHISPER_ACK" -> WhisperAck(
                     UUID.fromString(readUTF()), WhisperAck.Status.entries[readByte().toInt()], readUTF().takeIf { it.isNotEmpty() },
                 )
+                "RELOAD" -> Reload()
                 "PLAYERS" -> Players(
                     List(readInt()) { readUTF() },
                     buildMap { repeat(readInt()) { put(readUTF(), List(readInt()) { readUTF() }) } },

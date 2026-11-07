@@ -1,9 +1,7 @@
 package mc.xalitoria.chat.paper.modal.announce
 
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.completeWith
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -18,7 +16,9 @@ import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.util.Colorizer
 import mc.xalitoria.chat.protocol.Entry
-import mc.xalitoria.util.bukkit.runTask
+import mc.xalitoria.chat.paper.util.onGlobalThread
+import mc.xalitoria.chat.paper.util.runGlobal
+import mc.xalitoria.chat.paper.util.runOwned
 import mc.xalitoria.util.message.fail
 import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
@@ -39,19 +39,30 @@ import kotlin.time.Duration.Companion.seconds
  *
  * With `redis` on, the announcements are shared through Redis (see [AnnouncementSync]): this server's file holds the
  * ones whose `servers` name it. Saving the file sends the keys that changed (new, edited or deleted) to Redis, which
- * keeps the newest save of each and tells everyone else, and what comes back is applied as it arrives, so nothing
- * needs a reload. A key that stops naming this server, or was deleted elsewhere, is dropped from the file when
- * Redis next tells us, which is on a restart, `/xalichat reload` and every few minutes. See [AnnouncementStore] for
- * how saves are told apart.
+ * keeps the newest save of each and tells everyone else, and what comes back is written into the file as it arrives.
+ * A key that stops naming this server, or was deleted elsewhere, is dropped from the file when Redis next tells us.
+ * See [AnnouncementStore] for how saves are told apart.
+ *
+ * What runs is not touched by any of that: [announcements] and the timers are what the file held when the plugin
+ * started or last reloaded (`/xalichat reload`, or the proxy's `/xalichatv greload`), including what Redis answered
+ * to that start or reload. A save, and an update from another server, wait in the file for the next reload.
  */
 class Announcements(private val plugin: XaliChat) {
     private val path = plugin.dataPath.resolve(FILE)
     private val store = AnnouncementStore(path, plugin.dataPath.resolve("announcements.state.json"))
 
-    /** What is loaded: every key in the file, whether or not it still names this server. */
-    val announcements: Map<String, Announcement> get() = store.announcements
+    /** What runs: the announcements as of the last start or reload, which the file and Redis only change at the next one. */
+    @Volatile
+    private var running: Map<String, Announcement> = emptyMap()
+
+    /** What can be played and has timers: the file as of the last start or reload, whether or not it still names this server. */
+    val announcements: Map<String, Announcement> get() = running
 
     private var timers: List<Job> = []
+
+    /** True from connecting, in a start or a reload, until Redis has answered: what it says then is what runs. */
+    @Volatile
+    private var pulling = false
 
     @Volatile
     private var sync: AnnouncementSync? = null
@@ -63,7 +74,8 @@ class Announcements(private val plugin: XaliChat) {
     private fun connect() {
         sync?.close()
         val redis = plugin.config.data.redis
-        sync = if (redis.enable) AnnouncementSync(redis, store, { plugin.config.data.database.serverName }, ::receive, SyncLog()).also { it.start() }
+        pulling = true
+        sync = if (redis.enable) AnnouncementSync(redis, store, { plugin.config.data.database.serverName }, ::receive, SyncLog(), synced = { pulling = false }).also { it.start() }
         else {
             plugin.logger.info("Redis is off (redis.enable in config.yml), so announcements stay in this server's $FILE")
             null
@@ -82,7 +94,7 @@ class Announcements(private val plugin: XaliChat) {
             writeIfMissing("Redis is off")
         }
         // The sync reads Redis by itself once it connects, so only the file is loaded here.
-        load(force = true)
+        load()
 
         // Editors save in several steps (temp file, rename), hence the wait before reading.
         plugin.scope.launch(Dispatchers.IO) {
@@ -94,7 +106,7 @@ class Announcements(private val plugin: XaliChat) {
                     key.reset()
                     if (!touched) continue
                     delay(300.milliseconds)
-                    load(force = false)
+                    saved()
                 }
             }
         }
@@ -116,29 +128,47 @@ class Announcements(private val plugin: XaliChat) {
 
     /**
      * `/xalichat reload`: reconnects to Redis with the current settings, loads the file and restarts every timer.
-     * The new connection sends what was saved and asks Redis what this server should hold as soon as it is up.
+     * The new connection sends what was saved and asks Redis what this server should hold as soon as it is up, and
+     * the answer is what runs.
      */
     fun reload(): Boolean {
         connect()
-        return load(force = true)
+        return load()
     }
 
     /**
-     * Reads the file and sends what changed to Redis. A save that changed nothing (comments, our own writes)
-     * leaves the timers running unless [force]. A file that fails to parse is logged and the loaded announcements stay.
+     * Reads the file, sends what changed to Redis and runs what it holds: the start and the reload. A file that fails
+     * to parse is logged and the announcements already running stay.
      */
     @Synchronized
-    private fun load(force: Boolean): Boolean {
-        val changes = try {
-            store.scan()
-        } catch (e: Exception) {
-            plugin.logger.fail("$FILE is not valid YAML, so nothing is synced and the announcements already loaded are kept; the last working version is in $FILE.bak.", e)
-            return false
-        }
-        if (force || changes.isNotEmpty()) schedule()
-        debug("Loaded {0} announcements, {1} on timers, {2} changed", announcements.size, timers.size, changes.size)
+    private fun load(): Boolean {
+        val changes = scanFile() ?: return false
+        running = store.announcements
+        schedule()
+        debug("Loaded {0} announcements, {1} on timers, {2} changed", running.size, timers.size, changes.size)
         sync?.flush()
         return true
+    }
+
+    /**
+     * A save of the file: sends what changed to Redis, and nothing else. What runs stays as it is until a reload; a
+     * file that fails to parse is logged and left.
+     */
+    @Synchronized
+    private fun saved() {
+        val changes = scanFile() ?: return
+        debug("Saved {0}: {1} changed", FILE, changes.size)
+        // Only keys whose content changed are in it: comments, layout and our own writes are not.
+        if (changes.isNotEmpty()) plugin.logger.info("Saved $FILE; it runs after /xalichat reload here, or /xalichatv greload on every server.")
+        sync?.flush()
+    }
+
+    /** What changed in the file since it was last read; null, with the reason logged, when it doesn't parse. */
+    private fun scanFile(): List<Entry>? = try {
+        store.scan()
+    } catch (e: Exception) {
+        plugin.logger.fail("$FILE is not valid YAML, so nothing is synced and the announcements already loaded are kept; the last working version is in $FILE.bak.", e)
+        null
     }
 
     private fun schedule() {
@@ -158,10 +188,12 @@ class Announcements(private val plugin: XaliChat) {
     }
 
     /**
-     * Applies what Redis sent. The file is read first, so a save that hasn't been picked up yet isn't written over
-     * (and goes to the proxy as usual); one that doesn't parse is left alone and the update is dropped.
+     * Takes what Redis sent into the file. The file is read first, so a save that hasn't been picked up yet isn't
+     * written over (and goes to the proxy as usual); one that doesn't parse is left alone and the update is dropped.
+     * It runs only when it is the answer to a start or a reload; otherwise it waits in the file for the next reload.
      */
     fun receive(entries: List<Entry>) {
+        val run = pulling
         plugin.scope.launch(Dispatchers.IO) {
             synchronized(this@Announcements) {
                 try {
@@ -180,10 +212,14 @@ class Announcements(private val plugin: XaliChat) {
                 if (applied > 0 || first) {
                     // Not written if the file was saved since it was read; that save is picked up next.
                     if (!store.write()) debug("{0} was saved while Redis's update was being applied; leaving the file as saved", FILE)
-                    schedule()
+                    if (run || first) {
+                        running = store.announcements
+                        schedule()
+                    }
                     if (first) plugin.logger.info("Created $FILE from Redis ($applied announcements for this server).")
-                    // Always, whatever debug says: this changes what the server runs.
-                    else plugin.logger.info("Synced $FILE from Redis: ${AnnouncementSync.summarize(taken)}; reloaded ${timers.size} timed announcement${if (timers.size == 1) "" else "s"}.")
+                    // Always, whatever debug says: this changes the file.
+                    else if (run) plugin.logger.info("Synced $FILE from Redis: ${AnnouncementSync.summarize(taken)}; running ${timers.size} timed announcement${if (timers.size == 1) "" else "s"}.")
+                    else plugin.logger.info("Synced $FILE from Redis: ${AnnouncementSync.summarize(taken)}; it runs after /xalichat reload here, or /xalichatv greload on every server.")
                 }
             }
         }
@@ -203,7 +239,7 @@ class Announcements(private val plugin: XaliChat) {
         }
         val subject = uuid?.let { plugin.server.getOfflinePlayer(it) }
 
-        // Runs on the main thread: PlaceholderAPI expansions read live server state.
+        // Runs on the global region (the main thread on Paper), or on a viewer's own thread for their lines: PlaceholderAPI expansions read live server state.
         fun expand(text: String, viewer: Player?): String {
             val player: OfflinePlayer? = subject ?: viewer
             val playerName = name ?: player?.name
@@ -213,18 +249,18 @@ class Announcements(private val plugin: XaliChat) {
             return PlaceholderAPI.setPlaceholders(player, result)
         }
 
-        // Runs a list in order. Messages and commands are handed to the main thread and not waited for; a condition is
+        // Runs a list in order. Messages and commands are handed to the server's threads and not waited for; a condition is
         // waited for, since what it decides is needed here.
         suspend fun play(actions: List<Action>) {
             for (action in actions) when (action) {
                 is Action.Delay -> delay(action.duration)
-                is Action.Message -> plugin.runTask { send(false) { viewer -> action.lines.map { Colorizer.parse(expand(it, viewer)) } } }
-                is Action.Command -> plugin.runTask {
+                is Action.Message -> plugin.runGlobal { send(false) { viewer -> action.lines.map { Colorizer.parse(expand(it, viewer)) } } }
+                is Action.Command -> plugin.runGlobal {
                     debug("Announcement {0} runs: {1}", key, action.command)
                     plugin.server.dispatchCommand(plugin.server.consoleSender, expand(action.command, null).removePrefix("/"))
                 }
                 is Action.Condition -> {
-                    val passed = onMainThread { action.matches { expand(it, null) } }
+                    val passed = plugin.onGlobalThread { action.matches { expand(it, null) } }
                     debug("Announcement {0} condition {1} is {2}", key, action.test, passed)
                     play(if (passed) action.yes else action.no)
                 }
@@ -235,23 +271,20 @@ class Announcements(private val plugin: XaliChat) {
         plugin.scope.launch { play(announcement.actions) }
     }
 
-    /** Runs [block] on the main thread and returns what it returns, or throws what it threw. */
-    private suspend fun <T> onMainThread(block: () -> T): T {
-        val result = CompletableDeferred<T>()
-        plugin.runTask { result.completeWith(runCatching(block)) }
-        return result.await()
-    }
-
     /**
-     * Sends [lines] to every online player who hasn't muted broadcasts (all of them when [bypassMute]) and to the
-     * console, which is asked for its lines with a `null` viewer. Run it on the main thread.
+     * Sends [lines] to every online player who hasn't muted broadcasts (all of them when [bypassMute]) and, unless
+     * [console] is off, to the console, which is asked for its lines with a `null` viewer. Returns how many players
+     * it reached. Each player's lines are made and sent on the thread that owns them (their region on Folia), so it may
+     * be called from any thread, but the console's lines are made on the caller's: run it on the global region when
+     * they read server state.
      */
-    fun send(bypassMute: Boolean, lines: (Player?) -> List<Component>) {
+    fun send(bypassMute: Boolean, console: Boolean = true, lines: (Player?) -> List<Component>): Int {
         val viewers = plugin.server.onlinePlayers
             .filter { bypassMute || !SettingCache.isEnabled(it.uniqueId, Setting.MUTE_BROADCASTS) }
-        viewers.forEach { viewer -> lines(viewer).forEach { viewer.sendMessage(it) } }
-        lines(null).forEach { plugin.server.consoleSender.sendMessage(it) }
-        debug("Sent to {0}/{1} players (bypassMute={2})", viewers.size, plugin.server.onlinePlayers.size, bypassMute)
+        viewers.forEach { viewer -> viewer.runOwned(plugin) { lines(viewer).forEach { viewer.sendMessage(it) } } }
+        if (console) lines(null).forEach { plugin.server.consoleSender.sendMessage(it) }
+        debug("Sent to {0}/{1} players (bypassMute={2}, console={3})", viewers.size, plugin.server.onlinePlayers.size, bypassMute, console)
+        return viewers.size
     }
 
     /** Sends what the sync has to say to this plugin's logger. */

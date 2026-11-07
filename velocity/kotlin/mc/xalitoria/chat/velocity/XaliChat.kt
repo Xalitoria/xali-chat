@@ -17,8 +17,6 @@ import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.protocol.Message.*
 import mc.xalitoria.chat.protocol.Protocol
 import mc.xalitoria.chat.protocol.Reassembler
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.slf4j.Logger
 import java.nio.file.FileSystems
 import java.nio.file.Files
@@ -46,6 +44,9 @@ import kotlin.jvm.optionals.getOrElse
  * to the servers for tab completion whenever someone joins, leaves or vanishes, a moment after the last of a burst.
  *
  * Messages are signed with the forwarding secret from velocity.toml and anything else is dropped.
+ *
+ * `/xalichatv reload` reads the configuration and the master file again and reconnects to Redis; `/xalichatv greload`
+ * does that and asks every server to reload too (see [ReloadCommand]).
  */
 class XaliChat(
     private val proxy: ProxyServer,
@@ -64,6 +65,7 @@ class XaliChat(
 
     private lateinit var store: AnnouncementStore
 
+    @Volatile
     private var sync: AnnouncementSync? = null
 
     private var config = ProxyConfig()
@@ -81,7 +83,8 @@ class XaliChat(
      */
     private var secret: String? = null
 
-    override fun run() {
+    /** Reads the forwarding secret again, if it hasn't been read: a variable or the file velocity.toml names. */
+    private fun findSecret() {
         val root = dataDirectory.toAbsolutePath().parent.parent // plugins/<id> sits under the folder holding velocity.toml
         if (secret == null) secret = runCatching { System.getenv("VELOCITY_FORWARDING_SECRET") }.getOrNull()
         if (secret == null) secret = try {
@@ -95,6 +98,22 @@ class XaliChat(
             null
         }
         if (secret == null) logger.error("Could not read the forwarding secret, so no message will be relayed")
+    }
+
+    /** Opens the connection to Redis from the settings as they are now, after closing the one there is. */
+    private fun connect() {
+        sync?.close()
+        if (config.redis.enable) {
+            // Connecting offers everything the master holds, so its first copy reaches Redis whenever that is up.
+            sync = AnnouncementSync(config.redis, store, { null }, ::applyShared, SyncLog()).also { it.start() }
+        } else {
+            sync = null
+            logger.info("Redis is off, so announcements are not shared; each server keeps its own announcements.yml")
+        }
+    }
+
+    override fun run() {
+        findSecret()
 
         // What a first start has to put in the plugin's folder, so there is something to edit.
         dataDirectory.createDirectories()
@@ -111,16 +130,12 @@ class XaliChat(
             XaliChat::class.java.getResourceAsStream("/announcements.yml")?.use { Files.copy(it, file) }
         }
         rescan()
-        if (config.redis.enable) {
-            // Connecting offers everything the master holds, so its first copy reaches Redis whenever that is up.
-            sync = AnnouncementSync(config.redis, store, { null }, ::applyShared, SyncLog()).also { it.start() }
-        } else {
-            logger.info("Redis is off, so announcements are not shared; each server keeps its own announcements.yml")
-        }
+        connect()
         watch(file)
 
         proxy.channelRegistrar.register(channel)
         proxy.eventManager.register(plugin, this)
+        proxy.commandManager.register(proxy.commandManager.metaBuilder(ReloadCommand.LABEL).plugin(plugin).build(), ReloadCommand(this))
         if (proxy.pluginManager.isLoaded("premiumvanish")) try {
             vanish = Vanish(::refreshPlayers).also { proxy.eventManager.register(plugin, it) }
             logger.info("PremiumVanish found: vanished players are left out of tab completion for those who can't see them")
@@ -133,6 +148,48 @@ class XaliChat(
     override fun close() {
         sync?.close()
     }
+
+    /**
+     * `/xalichatv reload`: reads `config.yml` and the master `announcements.yml` again, and reconnects to Redis with the
+     * settings as they are now, which offers what was saved and pulls what is newer. A `config.yml` that doesn't parse
+     * is logged and the settings stay as they were. Returns whether the configuration was read.
+     */
+    fun reload(): Boolean {
+        val read = try {
+            config = ProxyConfig.load(dataDirectory.resolve("config.yml"))
+            true
+        } catch (e: Exception) {
+            logger.error("Could not read config.yml; keeping the settings as they were", e)
+            false
+        }
+        if (secret == null) findSecret()
+        rescan()
+        connect()
+        refreshPlayers()
+        logger.info("Reloaded the proxy's XaliChat")
+        return read
+    }
+
+    /** What [reloadAll] did: the servers that were sent the request, and those that weren't (nobody on them to carry it, or no secret). */
+    class Reached(val asked: List<String>, val missed: List<String>)
+
+    /**
+     * `/xalichatv greload`: [reload]s here and asks every server to reload as well, as `/xalichat reload` does on it.
+     * A plugin message needs a player on the server to travel with, so a server with nobody on is in [Reached.missed].
+     */
+    fun reloadAll(): Reached {
+        reload()
+        val asked = ArrayList<String>()
+        val missed = ArrayList<String>()
+        proxy.allServers.sortedBy { it.serverInfo.name }.forEach { server ->
+            (if (deliver(server, Reload())) asked else missed) += server.serverInfo.name
+        }
+        logger.info("Asked {} of {} servers to reload{}", asked.size, asked.size + missed.size, if (missed.isEmpty()) "" else "; nobody on " + missed.joinToString(", "))
+        return Reached(asked, missed)
+    }
+
+    /** Whether the relay has a secret to sign what it sends with. */
+    val canSign: Boolean get() = !secret.isNullOrEmpty()
 
     @Subscribe
     fun onServerPostConnect(event: ServerPostConnectEvent) = refreshPlayers()
@@ -161,7 +218,8 @@ class XaliChat(
             is Broadcast, is Announce -> {
                 val reached = proxy.allServers.count { deliver(it, message) }
                 when (message) {
-                    is Broadcast -> logger.info("[Broadcast from {}] {}", origin.serverInfo.name, plain(message.json))
+                    // Who it came from and how far it went, not the text.
+                    is Broadcast -> logger.info("[Broadcast from {}] relayed to {} of {} servers", origin.serverInfo.name, reached, proxy.allServers.size)
                     is Announce -> logger.info("[Announcement {} from {}] for {}", message.key, origin.serverInfo.name, message.name ?: message.uuid ?: "everyone")
                 }
                 debug("Relayed {} from {} to {} of {} servers", message::class.simpleName, origin.serverInfo.name, reached, proxy.allServers.size)
@@ -169,6 +227,7 @@ class XaliChat(
             is Whisper -> whisper(origin, message)
             is WhisperAck -> whispers.remove(message.id)?.let { deliver(it, message) }
             is Players -> logger.warn("Dropped a Players from {}: only the proxy sends those", origin.serverInfo.name)
+            is Reload -> logger.warn("Dropped a Reload from {}: only the proxy sends those", origin.serverInfo.name)
             null -> logger.warn("Dropped a message from {} with a missing or wrong signature", origin.serverInfo.name)
         }
     }
@@ -229,10 +288,6 @@ class XaliChat(
     /** Whether private messages between servers include [server]: switched on, and named by `servers` if that has any. */
     private fun participates(server: RegisteredServer): Boolean =
         config.crossServerMessages.enable && serverMatches(config.crossServerMessages.servers, server.serverInfo.name)
-
-    /** A message sent as Adventure JSON, as plain text for the console. */
-    private fun plain(json: String): String =
-        PlainTextComponentSerializer.plainText().serialize(GsonComponentSerializer.gson().deserialize(json))
 
     private fun debug(message: String, vararg args: Any?) {
         if (config.debug) logger.info(message, *args)

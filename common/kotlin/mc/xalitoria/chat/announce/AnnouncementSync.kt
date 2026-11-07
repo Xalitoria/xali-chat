@@ -34,6 +34,8 @@ class AnnouncementSync(
     private val apply: (List<Entry>) -> Unit,
     private val log: Log,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Called when a sync with Redis has finished, [apply] included: the pull that follows a start, a reload or a lost connection. */
+    private val synced: () -> Unit = {},
 ) : AutoCloseable {
     interface Log {
         fun info(message: String)
@@ -135,6 +137,7 @@ class AnnouncementSync(
             val summary = "Redis holds ${master.count { it.json != null }} announcements, ${wanted.count { it.json != null }} of them for this server" +
                 if (restored > 0) "; gave it $restored it lacked" else ""
             log.info("Synced with Redis: $summary")
+            synced()
         } catch (e: Exception) {
             log.warn("Could not sync announcements with Redis", e)
         }

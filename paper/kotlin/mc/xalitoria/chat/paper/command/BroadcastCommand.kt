@@ -45,9 +45,12 @@ object BroadcastCommand: XCommand(XaliChat.INSTANCE) {
                 debug("/{0} by {1}: bypassesMute={2}, message={3}", label, sender.name, bypassesMute, text)
 
                 val relayed = global && plugin.messenger.send(Message.Broadcast(bypassesMute, GCOMP.serialize(announcement)))
-                if (!relayed) {
+                // The console gets a line about it, not the message; the text is only in the debug log.
+                if (relayed) plugin.logger.info("${sender.name} sent a broadcast to every server")
+                else {
                     if (global) sender warn msg.localOnly
-                    plugin.announcements.send(bypassesMute) { listOf(announcement) }
+                    val reached = plugin.announcements.send(bypassesMute, console = false) { listOf(announcement) }
+                    plugin.logger.info("${sender.name} broadcast to $reached player${if (reached == 1) "" else "s"}")
                 }
                 Command.SINGLE_SUCCESS
             }

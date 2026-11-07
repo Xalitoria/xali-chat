@@ -13,6 +13,7 @@ import mc.xalitoria.chat.paper.util.ProxyPlayers
 import mc.xalitoria.chat.paper.util.ReplyTracker
 import mc.xalitoria.chat.paper.util.SpyNotifier
 import mc.xalitoria.chat.paper.util.resolvePlaceholders
+import mc.xalitoria.util.bukkit.runTask
 import mc.xalitoria.util.message.send
 import mc.xalitoria.chat.protocol.Message
 import mc.xalitoria.chat.protocol.Protocol
@@ -67,8 +68,9 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
     }
 
     /**
-     * Anything a client can send to a plugin channel reaches here too, so the messages that change something (config
-     * sync, global broadcasts and announcements) are only acted on inside a `SIGNED` frame whose HMAC checks out.
+     * Anything a client can send to a plugin channel reaches here too, so the messages that change something
+     * (global broadcasts and announcements, reload requests, the player list, whispers) are only acted on inside a
+     * `SIGNED` frame whose HMAC checks out.
      */
     private fun handle(message: ByteArray) {
         val frame = reassembler.accept(message) ?: return
@@ -76,12 +78,20 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
             Protocol.SIGNED -> when (val opened = Protocol.open(secret, frame)) {
                 is Message.Broadcast -> {
                     val component = GCOMP.deserialize(opened.json)
-                    plugin.announcements.send(opened.bypassMute) { listOf(component) }
+                    val reached = plugin.announcements.send(opened.bypassMute, console = false) { listOf(component) }
+                    plugin.logger.info("Broadcast from the proxy to $reached player${if (reached == 1) "" else "s"}")
                 }
                 is Message.Announce -> plugin.announcements.announce(opened.key, opened.uuid, opened.name, respectServers = true)
                 is Message.Players -> {
                     ProxyPlayers.update(opened)
                     debug("Proxy player list: {0} names, {1} hidden from someone here", opened.names.size, opened.hidden.size)
+                }
+                is Message.Reload -> {
+                    plugin.logger.info("The proxy asked for a reload.")
+                    // util's runTask: the global region on Folia, the main thread on Paper.
+                    plugin.runTask {
+                        runCatching { plugin.reload() }.onFailure { plugin.logger.log(java.util.logging.Level.WARNING, "The reload the proxy asked for failed", it) }
+                    }
                 }
                 is Message.Whisper -> receiveWhisper(opened)
                 is Message.WhisperAck -> pending.remove(opened.id)?.complete(opened)
