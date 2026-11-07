@@ -18,7 +18,7 @@ pluginManagement {
     }
     resolutionStrategy {
         eachPlugin {
-            if (requested.id.id.startsWith("mc.xalitoria.")) useVersion("0.1.0")
+            if (requested.id.id.startsWith("mc.xalitoria.")) useVersion("0.1.1")
         }
     }
 }
@@ -31,7 +31,7 @@ dependencyResolutionManagement {
     }
     versionCatalogs {
         create("libs") {
-            from("mc.xalitoria:xali-catalog:0.1.0")
+            from("mc.xalitoria:xali-catalog:0.1.1")
         }
     }
 }
