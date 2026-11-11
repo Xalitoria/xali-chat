@@ -89,12 +89,21 @@
       style.textContent = [
         ".xalichat-framed [id^='extension-table-'][id$='-container'], .xalichat-framed > ul.nav:empty { display: none; }",
         ".xalichat-framed > .card-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .5rem; padding: .75rem 1rem 1rem; }",
-        ".xalichat-framed > .card-body > p.datapoint { display: flex; align-items: center; gap: .5rem; margin: 0; padding: .45rem .75rem; border: 1px solid var(--color-cards-border); border-radius: .35rem; white-space: nowrap; }",
-        ".xalichat-framed > .card-body > p.datapoint .float-end { float: none !important; margin-left: auto; font-weight: 700; font-size: 1.1em; }",
+        // Plan 5.9 puts the counts in a section of the tab's row, and each of its tables in a column of its own.
+        ".xalichat-framed #extension-tab-row > div:has([id^='extension-table-']) { display: none; }",
+        ".xalichat-framed #extension-tab-row > div > section { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .5rem; padding: .75rem 1rem 1rem; }",
+        ".xalichat-framed p.datapoint { display: flex; align-items: center; gap: .5rem; margin: 0; padding: .45rem .75rem; border: 1px solid var(--color-cards-border); border-radius: .35rem; white-space: nowrap; }",
+        ".xalichat-framed p.datapoint .float-end { float: none !important; margin-left: auto; font-weight: 700; font-size: 1.1em; }",
       ].join("\n");
       document.head.appendChild(style);
     }
     body.classList.add("xalichat-framed");
+  }
+
+  // Plan 5.9 sizes a plugin's card by what is in it, and counts without a wide table make it a third of the page, which
+  // is too narrow for a log. 5.8 draws the card the full width already, and has no column class to replace.
+  function widen(card) {
+    card.className = card.className.replace(/\bcol-(?:(?:sm|md|lg|xl|xxl)-)?\d+\b/g, function (c) { return c.replace(/\d+$/, "12"); });
   }
 
   async function mount() {
@@ -107,7 +116,7 @@
     var body = found.body;
     var identity = location.pathname + location.search;
     var existing = body.querySelector(":scope > .xalichat-embed");
-    if (existing && existing.dataset.identity === identity) { replaceTables(body); return; }
+    if (existing && existing.dataset.identity === identity) { replaceTables(body); widen(card); return; }
 
     mounting = true;
     try {
@@ -131,9 +140,10 @@
       frame.style.cssText = "width: 100%; height: " + Math.max(540, window.innerHeight - 200) + "px; border: 1px solid var(--color-cards-border); border-radius: .35rem; background: var(--color-cards-background);";
       box.appendChild(frame);
       // The log first, then Plan's counts under it (Plan puts them first, and its tables after).
-      var counts = body.querySelector(":scope > .card-body");
+      var counts = body.querySelector(":scope > .card-body") || body.querySelector(":scope > #extension-tab-row");
       if (counts) body.insertBefore(box, counts); else body.appendChild(box);
       replaceTables(body);
+      widen(card);
       // Plan lays its cards out in columns by their height, so it is told this one grew.
       setTimeout(function () { window.dispatchEvent(new Event("resize")); }, 50);
       if (focus) card.scrollIntoView({ block: "start" });

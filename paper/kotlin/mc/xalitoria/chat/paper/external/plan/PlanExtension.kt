@@ -15,15 +15,15 @@ import com.djrapitops.plan.extension.icon.Family
 import com.djrapitops.plan.extension.icon.Icon
 import com.djrapitops.plan.extension.table.Table
 import com.djrapitops.plan.extension.table.TableColumnFormat
-import kotlinx.coroutines.runBlocking
-import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.data.db.repository.ChatLogRepository
-import mc.xalitoria.chat.paper.data.db.DatabaseManager
-import mc.xalitoria.chat.paper.data.db.repository.CommandLogRepository
 import com.xalitoria.chat.logs.LogFilter
 import com.xalitoria.chat.logs.LogKind
 import com.xalitoria.chat.logs.LogRepository
+import kotlinx.coroutines.runBlocking
+import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.db.DatabaseManager
+import mc.xalitoria.chat.paper.data.db.repository.ChatLogRepository
+import mc.xalitoria.chat.paper.data.db.repository.CommandLogRepository
 import java.util.UUID
 import kotlin.time.Duration.Companion.days
 
@@ -122,9 +122,8 @@ class PlanExtension(private val plugin: XaliChat) : DataExtension {
         val table = Table.builder()
             .columnOne("When", Icon(Family.SOLID, "clock", Color.NONE))
             .columnOneFormat(TableColumnFormat.DATE_SECOND)
-            .columnTwo("Player", Icon(Family.SOLID, "user", Color.NONE))
-            .columnThree("Message", Icon(Family.SOLID, "comment", Color.NONE))
-        latestOnServer(LogKind.CHAT).forEach { table.addRow(it.timestampMillis, it.username, cut(it.text)) }
+            .columnTwo("Message", Icon(Family.SOLID, "comment", Color.NONE))
+        latestOnServer(LogKind.CHAT).forEach { table.addRow(it.timestampMillis, cut("${it.username}: ${it.text}")) }
         return table.build()
     }
 
@@ -134,9 +133,8 @@ class PlanExtension(private val plugin: XaliChat) : DataExtension {
         val table = Table.builder()
             .columnOne("When", Icon(Family.SOLID, "clock", Color.NONE))
             .columnOneFormat(TableColumnFormat.DATE_SECOND)
-            .columnTwo("Player", Icon(Family.SOLID, "user", Color.NONE))
-            .columnThree("Command", Icon(Family.SOLID, "terminal", Color.NONE))
-        latestOnServer(LogKind.COMMAND).forEach { table.addRow(it.timestampMillis, it.username, cut("/" + it.text)) }
+            .columnTwo("Command", Icon(Family.SOLID, "terminal", Color.NONE))
+        latestOnServer(LogKind.COMMAND).forEach { table.addRow(it.timestampMillis, cut("${it.username}: /${it.text}")) }
         return table.build()
     }
 
