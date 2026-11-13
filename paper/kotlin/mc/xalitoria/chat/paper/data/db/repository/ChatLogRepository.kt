@@ -1,20 +1,20 @@
 package mc.xalitoria.chat.paper.data.db.repository
 
-import mc.xalitoria.chat.paper.data.log.ChatLogEntry
-import mc.xalitoria.chat.paper.data.db.DatabaseManager
-import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
 import com.xalitoria.chat.logs.ChatLogTable
 import com.xalitoria.chat.logs.ServerTable
+import mc.xalitoria.chat.paper.data.db.DatabaseManager
+import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
+import mc.xalitoria.chat.paper.data.log.ChatLogEntry
 import org.jetbrains.exposed.v1.core.LikePattern
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.compoundAnd
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.like
 import org.jetbrains.exposed.v1.core.lowerCase
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.selectAll

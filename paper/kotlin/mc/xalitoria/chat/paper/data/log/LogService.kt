@@ -26,6 +26,7 @@ class LogService(private val plugin: XaliChat, private val written: () -> Unit) 
         write = { CommandLogRepository.insertAll(it); written() },
         fallback = ::writeCommandText,
     )
+
     /** Private messages have no text log to fall back to: one that can't be written is dropped. */
     private val messageWriter = LogWriter<MessageLogEntry>(
         plugin.scope, "message", plugin.logger,

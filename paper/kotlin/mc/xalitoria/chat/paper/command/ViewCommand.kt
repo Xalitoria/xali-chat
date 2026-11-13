@@ -12,7 +12,7 @@ import mc.xalitoria.chat.paper.modal.command.XCommand
 import org.bukkit.entity.Player
 
 /** `/xview <id>` opens an inventory snapshot from an interactive chat token; it's the click target, not typed by hand. */
-object ViewCommand: XCommand(XaliChat.INSTANCE) {
+object ViewCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Interactive chat snapshot viewer"
     override val mainCommand = "xview"
     override val aliases: List<String> = ["view"]

@@ -1,12 +1,12 @@
 package mc.xalitoria.chat.paper.concurrent
 
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import com.xalitoria.util.message.fail
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import com.xalitoria.util.message.fail
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import java.util.logging.Logger
 import kotlin.time.Duration
 

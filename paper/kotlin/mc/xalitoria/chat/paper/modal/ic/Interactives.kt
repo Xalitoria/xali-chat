@@ -1,9 +1,9 @@
 package mc.xalitoria.chat.paper.modal.ic
 
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.data.constants.Permissions
 import com.xalitoria.util.message.PLAIN
+import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.constants.Permissions
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TextReplacementConfig
 import net.kyori.adventure.text.event.ClickEvent
@@ -19,8 +19,8 @@ import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.InventoryHolder
 import org.bukkit.inventory.ItemStack
-import java.util.concurrent.CompletableFuture
 import java.util.Locale
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import kotlin.uuid.Uuid
 

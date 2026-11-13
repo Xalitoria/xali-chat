@@ -2,21 +2,21 @@ package mc.xalitoria.chat.paper.command
 
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.xalitoria.util.bukkit.nameOrId
+import com.xalitoria.util.bukkit.runOwned
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.util.runOwned
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.modal.command.XCommand
+import mc.xalitoria.chat.paper.command.argument.KnownPlayerArgument
 import mc.xalitoria.chat.paper.concurrent.KeyedMutex
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
 import mc.xalitoria.chat.paper.data.db.repository.IgnoreRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import com.xalitoria.util.message.*
-import mc.xalitoria.chat.paper.command.argument.KnownPlayerArgument
-import mc.xalitoria.chat.paper.util.nameOrId
+import mc.xalitoria.chat.paper.modal.command.XCommand
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 import java.util.UUID
@@ -25,10 +25,11 @@ import java.util.UUID
  * Self-toggle: the executing player ignores/un-ignores the target. Not an admin action — that's
  * `SilenceCommand`'s domain.
  */
-object IgnoreCommand: XCommand(XaliChat.INSTANCE) {
+object IgnoreCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Ignore players command"
     override val mainCommand = "xignore"
     override val aliases: List<String> = ["ignore"]
+
     // Serializes toggles per owner, so two overlapping `/xignore` invocations for the same owner
     // (against different targets) can't race each other's check-then-act DB write + cache update.
     private val locks = KeyedMutex<UUID>()

@@ -2,23 +2,23 @@ package mc.xalitoria.chat.paper.command
 
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.xalitoria.util.bukkit.runOwned
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.util.runOwned
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.repository.SettingRepository
 import mc.xalitoria.chat.paper.data.db.tables.Setting
-import com.xalitoria.util.message.*
+import mc.xalitoria.chat.paper.modal.command.XCommand
 import org.bukkit.entity.Player
 
 /** `/xsilence <players|broadcasts>` toggles the sender's own setting to hide global chat or broadcasts. */
-object SilenceCommand: XCommand(XaliChat.INSTANCE) {
+object SilenceCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Chat and broadcast silence settings"
     override val mainCommand = "xsilence"
     override val aliases: List<String> = ["silence"]

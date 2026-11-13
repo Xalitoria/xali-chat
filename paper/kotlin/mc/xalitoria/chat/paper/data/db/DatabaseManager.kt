@@ -1,30 +1,30 @@
 package mc.xalitoria.chat.paper.data.db
 
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.data.config.MainConfig
 import com.xalitoria.chat.logs.ChatLogTable
 import com.xalitoria.chat.logs.CommandLogTable
-import mc.xalitoria.chat.paper.data.db.tables.IgnoreTable
-import com.xalitoria.chat.logs.MessageLogTable
-import mc.xalitoria.chat.paper.data.db.repository.ServerRepository
-import mc.xalitoria.chat.paper.data.db.tables.NicknameTable
 import com.xalitoria.chat.logs.LogStorage
+import com.xalitoria.chat.logs.MessageLogTable
 import com.xalitoria.chat.logs.ServerTable
-import mc.xalitoria.chat.paper.data.db.tables.SettingTable
+import com.xalitoria.util.config.DatabaseConfig
+import com.xalitoria.util.config.DatabaseType
+import com.xalitoria.util.config.databaseType
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
-import com.xalitoria.util.config.DatabaseConfig
-import com.xalitoria.util.config.DatabaseType
-import com.xalitoria.util.config.databaseType
+import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.config.MainConfig
+import mc.xalitoria.chat.paper.data.db.repository.ServerRepository
+import mc.xalitoria.chat.paper.data.db.tables.IgnoreTable
+import mc.xalitoria.chat.paper.data.db.tables.NicknameTable
+import mc.xalitoria.chat.paper.data.db.tables.SettingTable
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.migration.jdbc.MigrationUtils
+import java.io.File
 
 /** HikariCP pool and Exposed [Database] for ignore, setting, nickname and log storage. */
 object DatabaseManager {

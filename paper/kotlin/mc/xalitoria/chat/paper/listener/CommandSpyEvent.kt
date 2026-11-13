@@ -1,12 +1,12 @@
 package mc.xalitoria.chat.paper.listener
 
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import com.xalitoria.util.message.info
 import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.constants.CommandAliases
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.util.SpyState
 import mc.xalitoria.chat.paper.util.resolvePlaceholders
-import com.xalitoria.util.message.info
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener

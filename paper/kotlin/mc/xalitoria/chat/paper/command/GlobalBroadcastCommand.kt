@@ -6,7 +6,7 @@ import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.modal.command.XCommand
 
 /** `/xgbroadcast <message>` is [BroadcastCommand] for every server on the proxy. */
-object GlobalBroadcastCommand: XCommand(XaliChat.INSTANCE) {
+object GlobalBroadcastCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Network-wide announcement command"
     override val mainCommand = "xgbroadcast"
     override val aliases: List<String> = ["gbroadcast", "gbcast", "gbc"]

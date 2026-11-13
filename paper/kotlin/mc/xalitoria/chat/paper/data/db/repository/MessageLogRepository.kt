@@ -1,8 +1,8 @@
 package mc.xalitoria.chat.paper.data.db.repository
 
+import com.xalitoria.chat.logs.MessageLogTable
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
-import com.xalitoria.chat.logs.MessageLogTable
 import mc.xalitoria.chat.paper.data.log.MessageLogEntry
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import kotlin.uuid.toKotlinUuid

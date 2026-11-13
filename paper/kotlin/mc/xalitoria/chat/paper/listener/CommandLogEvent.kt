@@ -1,7 +1,7 @@
 package mc.xalitoria.chat.paper.listener
 
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.constants.CommandAliases
 import mc.xalitoria.chat.paper.data.log.CommandLogEntry
 import org.bukkit.event.EventHandler

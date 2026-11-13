@@ -1,10 +1,10 @@
 package mc.xalitoria.chat.paper.data.log
 
+import com.xalitoria.util.serial.UniqueId
 import java.nio.file.Files
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.Date
-import com.xalitoria.util.serial.UniqueId
 import kotlin.io.path.bufferedWriter
 import kotlin.io.path.exists
 import kotlin.io.path.useLines

@@ -3,22 +3,22 @@ package mc.xalitoria.chat.paper.command
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.xalitoria.chat.protocol.Message
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.Colorizer
-import com.xalitoria.chat.protocol.Message
-import com.xalitoria.util.message.*
 
 /**
  * `/xbroadcast <message>` sends a server-wide announcement to everyone online and the console. Players who muted
  * broadcasts skip it unless the sender has [Permissions.BYP_MUTE_BROADCASTS]. Formatting is limited by the
  * sender's `xalichat.format.broadcast.*` permissions. [GlobalBroadcastCommand] sends it to every server instead.
  */
-object BroadcastCommand: XCommand(XaliChat.INSTANCE) {
+object BroadcastCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Server-wide announcement command"
     override val mainCommand = "xbroadcast"
     override val aliases: List<String> = ["broadcast", "bcast", "bc"]

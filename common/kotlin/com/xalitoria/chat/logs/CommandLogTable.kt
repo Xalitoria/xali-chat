@@ -5,6 +5,7 @@ import org.jetbrains.exposed.v1.core.Table
 /** One row per command a player ran, as typed (without the leading slash). */
 object CommandLogTable : Table(LogStorage.tableName("command_log")) {
     val id = long("id").autoIncrement()
+
     /** Null for rows written before servers were tracked. */
     val server = reference("server_id", ServerTable.id).nullable()
     val timestamp = long("timestamp")

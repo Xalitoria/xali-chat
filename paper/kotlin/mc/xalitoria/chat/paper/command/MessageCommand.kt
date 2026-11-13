@@ -3,28 +3,32 @@ package mc.xalitoria.chat.paper.command
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
-import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import com.xalitoria.chat.protocol.Message
-import mc.xalitoria.chat.paper.modal.command.XCommand
-import mc.xalitoria.chat.paper.data.db.IgnoreCache
-import mc.xalitoria.chat.paper.data.log.MessageLogEntry
-import mc.xalitoria.chat.paper.external.VanishAPI
-import mc.xalitoria.chat.paper.util.*
+import com.xalitoria.util.bukkit.findKnownPlayer
+import com.xalitoria.util.bukkit.findOnlinePlayer
+import com.xalitoria.util.bukkit.hasAnyPermission
+import com.xalitoria.util.bukkit.nameOrId
+import com.xalitoria.util.bukkit.runOwned
+import com.xalitoria.util.message.*
+import com.xalitoria.util.serial.toUuidOrNull
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import com.xalitoria.util.bukkit.hasAnyPermission
-import com.xalitoria.util.message.*
-import com.xalitoria.util.serial.toUuidOrNull
+import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.chat.paper.data.db.IgnoreCache
+import mc.xalitoria.chat.paper.data.log.MessageLogEntry
+import mc.xalitoria.chat.paper.external.VanishAPI
+import mc.xalitoria.chat.paper.modal.command.XCommand
+import mc.xalitoria.chat.paper.util.*
 import org.bukkit.command.CommandSender
 import org.bukkit.command.ConsoleCommandSender
 import org.bukkit.entity.Player
 import java.util.UUID
-import mc.xalitoria.chat.paper.data.constants.Permissions
 
-object MessageCommand: XCommand(XaliChat.INSTANCE) {
+object MessageCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Private message command"
     override val mainCommand = "xmessage"
     override val aliases: List<String> = ["message", "msg", "pm", "tell", "t", "whisper", "w"]

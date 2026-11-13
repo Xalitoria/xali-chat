@@ -15,7 +15,7 @@ data class FilterConfig(
     @SerialName("whitelist")
     private val _whitelist: MutableList<Phrase> = mutableListOf(),
     @SerialName("censored")
-    private val _censored: MutableList<Phrase> =             [
+    private val _censored: MutableList<Phrase> = [
         Phrase("alabaman? hot pocket"),
         Phrase("alaskan? pipe line"),
         Phrase("argie"),
@@ -48,8 +48,8 @@ data class FilterConfig(
         val next: List<Phrase>? = null,
         val require: Boolean = true
     ) {
-        constructor(match: String, next: List<Phrase>? = null, require: Boolean = true): this(listOf(match), next, require)
-        constructor(match: List<String>? = null, next: Phrase, require: Boolean = true): this(match, listOf(next), require)
+        constructor(match: String, next: List<Phrase>? = null, require: Boolean = true) : this(listOf(match), next, require)
+        constructor(match: List<String>? = null, next: Phrase, require: Boolean = true) : this(match, listOf(next), require)
 
         fun build(): Map<String, Regex> {
             val result = mutableMapOf<String, Regex>()

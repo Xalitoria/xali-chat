@@ -5,6 +5,7 @@ import org.jetbrains.exposed.v1.core.Table
 /** One row per chat message that reached ChatEvent's logging step. */
 object ChatLogTable : Table(LogStorage.tableName("chat_log")) {
     val id = long("id").autoIncrement()
+
     /** Null for rows written before servers were tracked. */
     val server = reference("server_id", ServerTable.id).nullable()
     val timestamp = long("timestamp")

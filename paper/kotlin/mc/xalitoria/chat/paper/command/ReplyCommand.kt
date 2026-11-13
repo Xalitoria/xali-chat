@@ -14,7 +14,7 @@ import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.ReplyTracker
 
 /** Answers whoever the sender last exchanged a private message with, on this server or another. */
-object ReplyCommand: XCommand(XaliChat.INSTANCE) {
+object ReplyCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Reply to your last private message"
     override val mainCommand = "xreply"
     override val aliases: List<String> = ["reply", "r"]

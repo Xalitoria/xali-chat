@@ -2,6 +2,14 @@ package mc.xalitoria.chat.paper.concurrent
 
 import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlConfiguration
+import com.xalitoria.chat.protocol.Message
+import com.xalitoria.chat.protocol.Protocol
+import com.xalitoria.chat.protocol.Reassembler
+import com.xalitoria.util.bukkit.runTask
+import com.xalitoria.util.message.GCOMP
+import com.xalitoria.util.message.send
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
@@ -13,12 +21,6 @@ import mc.xalitoria.chat.paper.util.ProxyPlayers
 import mc.xalitoria.chat.paper.util.ReplyTracker
 import mc.xalitoria.chat.paper.util.SpyNotifier
 import mc.xalitoria.chat.paper.util.resolvePlaceholders
-import com.xalitoria.util.bukkit.runTask
-import com.xalitoria.util.message.send
-import com.xalitoria.chat.protocol.Message
-import com.xalitoria.chat.protocol.Protocol
-import com.xalitoria.chat.protocol.Reassembler
-import com.xalitoria.util.message.GCOMP
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -26,8 +28,6 @@ import org.bukkit.plugin.messaging.PluginMessageListener
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.readText
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.milliseconds
 
 class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {

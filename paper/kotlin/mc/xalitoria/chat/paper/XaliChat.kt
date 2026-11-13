@@ -2,17 +2,18 @@ package mc.xalitoria.chat.paper
 
 import com.comphenix.protocol.ProtocolLibrary
 import com.comphenix.protocol.ProtocolManager
+import com.xalitoria.chat.announce.AnnouncementSync
+import com.xalitoria.chat.logs.LogChanges
+import com.xalitoria.chat.logs.LogPings
+import com.xalitoria.util.bukkit.coroutineScope
+import com.xalitoria.util.config.YamlFile
+import com.xalitoria.util.message.*
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import kotlinx.coroutines.*
-import kotlin.time.Duration.Companion.minutes
-import net.xalitoria.chat.NetworkPlayers
 import mc.xalitoria.chat.paper.command.*
 import mc.xalitoria.chat.paper.concurrent.ProxyMessenger
 import mc.xalitoria.chat.paper.data.config.*
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
-import com.xalitoria.chat.announce.AnnouncementSync
-import com.xalitoria.chat.logs.LogChanges
-import com.xalitoria.chat.logs.LogPings
 import mc.xalitoria.chat.paper.data.log.LogService
 import mc.xalitoria.chat.paper.external.VanishAPI
 import mc.xalitoria.chat.paper.external.plan.PlanHook
@@ -22,13 +23,13 @@ import mc.xalitoria.chat.paper.modal.announce.Announcements
 import mc.xalitoria.chat.paper.modal.ic.*
 import mc.xalitoria.chat.paper.util.CharacterRule
 import mc.xalitoria.chat.paper.util.ProxyPlayers
-import com.xalitoria.util.config.YamlFile
-import com.xalitoria.util.message.*
+import net.xalitoria.chat.NetworkPlayers
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.server.PluginEnableEvent
 import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
+import kotlin.time.Duration.Companion.minutes
 
 class XaliChat : JavaPlugin() {
     lateinit var config: YamlFile<MainConfig>
@@ -68,11 +69,7 @@ class XaliChat : JavaPlugin() {
     override fun onEnable() {
         INSTANCE = this
         //chatProvider = INSTANCE.server.servicesManager.getRegistration(XaliChat::class.java)!!.getProvider()
-        scope = CoroutineScope(
-            SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
-                logger.fail("Unhandled coroutine failure", throwable)
-            }
-        )
+        scope = coroutineScope()
         PROTO = ProtocolLibrary.getProtocolManager()
 
         val pm = server.pluginManager

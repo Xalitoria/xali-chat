@@ -4,24 +4,24 @@ import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
-import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.modal.command.XCommand
-import mc.xalitoria.chat.paper.external.VanishAPI
-import io.papermc.paper.command.brigadier.CommandSourceStack
-import io.papermc.paper.command.brigadier.Commands
+import com.xalitoria.util.bukkit.SERVER_UUID
+import com.xalitoria.util.bukkit.runOwned
 import com.xalitoria.util.message.fail
 import com.xalitoria.util.message.send
-import com.xalitoria.util.bukkit.SERVER_UUID
-import org.bukkit.entity.Player
+import io.papermc.paper.command.brigadier.CommandSourceStack
+import io.papermc.paper.command.brigadier.Commands
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
+import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.chat.paper.external.VanishAPI
+import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.runGlobalRepeating
-import mc.xalitoria.chat.paper.util.runOwned
+import org.bukkit.entity.Player
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import mc.xalitoria.chat.paper.data.constants.Permissions
 
-object SpamCommand: XCommand(XaliChat.INSTANCE) {
+object SpamCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Repeating chat command"
     override val mainCommand = "xspam"
     override val aliases: List<String> = ["spam"]

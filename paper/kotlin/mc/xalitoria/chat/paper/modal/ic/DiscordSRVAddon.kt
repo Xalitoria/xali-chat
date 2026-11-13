@@ -5,18 +5,18 @@ import com.discordsrv.api.component.MinecraftComponent
 import com.discordsrv.api.eventbus.Subscribe
 import com.discordsrv.api.events.message.postprocess.discord.DiscordChatMessagePostProcessEvent
 import com.discordsrv.api.events.message.preprocess.game.GameChatMessagePreProcessEvent
-import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.util.CHAT_MINI
-import mc.xalitoria.chat.paper.data.db.SettingCache
-import mc.xalitoria.chat.paper.data.db.tables.Setting
-import mc.xalitoria.chat.paper.data.constants.Permissions
-import mc.xalitoria.chat.paper.data.constants.Permissions.stripColors as stripFormat
 import com.xalitoria.color.stripColors
 import com.xalitoria.util.message.*
+import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.chat.paper.data.db.SettingCache
+import mc.xalitoria.chat.paper.data.db.tables.Setting
+import mc.xalitoria.chat.paper.util.CHAT_MINI
 import net.kyori.adventure.text.Component
 import org.bukkit.permissions.Permissible
 import org.bukkit.permissions.PermissibleBase
+import mc.xalitoria.chat.paper.data.constants.Permissions.stripColors as stripFormat
 
 /**
  * DiscordSRV 3 bridge, loaded only when DiscordSRV is present. Minecraft chat reaches Discord as plain text

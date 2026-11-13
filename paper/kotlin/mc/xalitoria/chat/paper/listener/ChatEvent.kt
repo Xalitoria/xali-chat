@@ -1,8 +1,9 @@
 package mc.xalitoria.chat.paper.listener
 
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import com.xalitoria.util.message.*
 import io.papermc.paper.event.player.AsyncChatEvent
 import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.constants.Permissions.stripColors
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
@@ -11,11 +12,9 @@ import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.data.log.ChatLogEntry
 import mc.xalitoria.chat.paper.util.CharacterCheck
 import mc.xalitoria.chat.paper.util.checkCharacters
-import mc.xalitoria.chat.paper.util.withoutCharacters
 import mc.xalitoria.chat.paper.util.withPlaceholders
 import mc.xalitoria.chat.paper.util.withRelationalPlaceholders
-import com.xalitoria.util.message.*
-import net.kyori.adventure.text.Component
+import mc.xalitoria.chat.paper.util.withoutCharacters
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler

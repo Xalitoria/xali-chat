@@ -3,6 +3,12 @@ package mc.xalitoria.chat.paper.command
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.xalitoria.util.bukkit.findKnownPlayer
+import com.xalitoria.util.bukkit.nameOrId
+import com.xalitoria.util.bukkit.runOwned
+import com.xalitoria.util.bukkit.runOwnedLater
+import com.xalitoria.util.bukkit.suggestMatching
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import kotlinx.coroutines.Dispatchers
@@ -10,18 +16,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.util.runOwned
-import mc.xalitoria.chat.paper.util.runOwnedLater
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.constants.Permissions.stripColors
 import mc.xalitoria.chat.paper.data.db.repository.NicknameRepository
-import mc.xalitoria.chat.paper.util.findKnownPlayer
-import mc.xalitoria.chat.paper.util.nameOrId
-import mc.xalitoria.chat.paper.util.suggestMatching
+import mc.xalitoria.chat.paper.modal.command.XCommand
 import mc.xalitoria.chat.paper.util.visiblePlayerNames
-import com.xalitoria.util.message.*
 import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player
 
@@ -29,7 +29,7 @@ import org.bukkit.entity.Player
  * `/nickname <nickname|reset>` sets your own; `/nickname <player|uuid> <nickname|reset>` sets another
  * player's, offline included. Formatting the sender lacks permission for is stripped; no spaces.
  */
-object NicknameCommand: XCommand(XaliChat.INSTANCE) {
+object NicknameCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Nickname command"
     override val mainCommand = "xnickname"
     override val aliases: List<String> = ["nickname", "nick"]

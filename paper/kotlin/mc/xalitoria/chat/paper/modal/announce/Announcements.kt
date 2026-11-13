@@ -1,25 +1,25 @@
 package mc.xalitoria.chat.paper.modal.announce
 
+import com.xalitoria.chat.announce.Action
+import com.xalitoria.chat.announce.Announcement
+import com.xalitoria.chat.announce.AnnouncementStore
+import com.xalitoria.chat.announce.AnnouncementSync
+import com.xalitoria.chat.protocol.Entry
+import com.xalitoria.util.bukkit.onGlobalThread
+import com.xalitoria.util.bukkit.runOwned
+import com.xalitoria.util.message.fail
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
-import com.xalitoria.chat.announce.Action
-import com.xalitoria.chat.announce.Announcement
-import com.xalitoria.chat.announce.AnnouncementStore
-import com.xalitoria.chat.announce.AnnouncementSync
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.util.Colorizer
-import com.xalitoria.chat.protocol.Entry
-import mc.xalitoria.chat.paper.util.onGlobalThread
 import mc.xalitoria.chat.paper.util.runGlobal
-import mc.xalitoria.chat.paper.util.runOwned
-import com.xalitoria.util.message.fail
 import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
 import org.bukkit.OfflinePlayer
@@ -27,9 +27,9 @@ import org.bukkit.entity.Player
 import java.nio.file.FileSystems
 import java.nio.file.StandardWatchEventKinds.ENTRY_CREATE
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
-import kotlin.io.path.exists
 import java.util.UUID
 import java.util.logging.Level
+import kotlin.io.path.exists
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -237,6 +237,10 @@ class Announcements(private val plugin: XaliChat) {
             debug("Announcement {0} skipped: unknown, disabled or not for this server", key)
             return
         }
+        if (plugin.server.onlinePlayers.isEmpty()) {
+            debug("Announcement {0} skipped: no players are online", key)
+            return
+        }
         val subject = uuid?.let { plugin.server.getOfflinePlayer(it) }
 
         // Runs on the global region (the main thread on Paper), or on a viewer's own thread for their lines: PlaceholderAPI expansions read live server state.
@@ -254,7 +258,7 @@ class Announcements(private val plugin: XaliChat) {
         suspend fun play(actions: List<Action>) {
             for (action in actions) when (action) {
                 is Action.Delay -> delay(action.duration)
-                is Action.Message -> plugin.runGlobal { send(false) { viewer -> action.lines.map { Colorizer.parse(expand(it, viewer)) } } }
+                is Action.Message -> plugin.runGlobal { send(false, console = false) { viewer -> action.lines.map { Colorizer.parse(expand(it, viewer)) } } }
                 is Action.Command -> plugin.runGlobal {
                     debug("Announcement {0} runs: {1}", key, action.command)
                     plugin.server.dispatchCommand(plugin.server.consoleSender, expand(action.command, null).removePrefix("/"))
@@ -267,7 +271,7 @@ class Announcements(private val plugin: XaliChat) {
             }
         }
 
-        debug("Playing announcement {0} for {1}", key, name ?: uuid ?: "everyone")
+        plugin.logger.info("Announcement $key sent " + if (uuid == null && name == null) "to all players" else "on behalf of ${name ?: uuid}")
         plugin.scope.launch { play(announcement.actions) }
     }
 

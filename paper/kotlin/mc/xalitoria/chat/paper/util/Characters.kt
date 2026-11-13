@@ -1,12 +1,13 @@
 package mc.xalitoria.chat.paper.util
 
+import com.xalitoria.util.bukkit.runOwned
+import com.xalitoria.util.message.PLAIN
+import com.xalitoria.util.message.toComponent
 import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.config.MainConfig
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import net.kyori.adventure.text.Component
-import com.xalitoria.util.message.PLAIN
-import com.xalitoria.util.message.toComponent
 import net.kyori.adventure.text.TextReplacementConfig
 import org.bukkit.entity.Player
 import java.util.regex.Pattern

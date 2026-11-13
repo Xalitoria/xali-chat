@@ -1,19 +1,19 @@
 package mc.xalitoria.chat.paper.listener
 
-import mc.xalitoria.chat.paper.util.ReplyTracker
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.command.NicknameCommand.applyNickname
+import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
 import mc.xalitoria.chat.paper.data.db.SettingCache
 import mc.xalitoria.chat.paper.data.db.repository.IgnoreRepository
-import mc.xalitoria.chat.paper.data.db.repository.SettingRepository
 import mc.xalitoria.chat.paper.data.db.repository.NicknameRepository
-import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
+import mc.xalitoria.chat.paper.data.db.repository.SettingRepository
 import mc.xalitoria.chat.paper.data.db.tables.Setting
+import mc.xalitoria.chat.paper.util.ReplyTracker
 import mc.xalitoria.chat.paper.util.SpyState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import mc.xalitoria.chat.paper.command.NicknameCommand.applyNickname
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener

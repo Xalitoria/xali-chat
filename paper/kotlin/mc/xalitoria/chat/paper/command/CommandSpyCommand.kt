@@ -2,17 +2,17 @@ package mc.xalitoria.chat.paper.command
 
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
-import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
-import mc.xalitoria.chat.paper.modal.command.XCommand
-import mc.xalitoria.chat.paper.data.constants.Permissions
-import mc.xalitoria.chat.paper.util.SpyState
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
-import com.xalitoria.util.message.*
+import mc.xalitoria.chat.paper.XaliChat
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
+import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.chat.paper.modal.command.XCommand
+import mc.xalitoria.chat.paper.util.SpyState
 import org.bukkit.entity.Player
 
-object CommandSpyCommand: XCommand(XaliChat.INSTANCE) {
+object CommandSpyCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Command spy toggle"
     override val mainCommand = "xcommandspy"
     override val aliases: List<String> = ["commandspy"]

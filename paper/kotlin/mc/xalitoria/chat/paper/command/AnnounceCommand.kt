@@ -4,6 +4,10 @@ import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.context.CommandContext
+import com.xalitoria.chat.protocol.Message
+import com.xalitoria.util.bukkit.nameOrId
+import com.xalitoria.util.bukkit.suggestMatching
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
@@ -11,10 +15,6 @@ import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.command.argument.KnownPlayerArgument
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.modal.command.XCommand
-import mc.xalitoria.chat.paper.util.nameOrId
-import com.xalitoria.chat.protocol.Message
-import mc.xalitoria.chat.paper.util.suggestMatching
-import com.xalitoria.util.message.*
 import org.bukkit.OfflinePlayer
 
 /**
@@ -22,7 +22,7 @@ import org.bukkit.OfflinePlayer
  * is about them (their name and UUID fill `{name}` and `{uuid}`); without, it is about nobody and each viewer of a
  * message gets their own. [GlobalAnnounceCommand] plays it on every server its `servers` list names instead.
  */
-object AnnounceCommand: XCommand(XaliChat.INSTANCE) {
+object AnnounceCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Plays an announcement from announcements.yml"
     override val mainCommand = "xannounce"
     override val aliases: List<String> = ["announce", "ann"]

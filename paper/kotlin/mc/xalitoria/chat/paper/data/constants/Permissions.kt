@@ -11,54 +11,54 @@ import org.bukkit.permissions.Permissible
 
 object Permissions {
 
-    const val IGNORE          = "xalichat.ignore"
+    const val IGNORE = "xalichat.ignore"
 
-    const val FORMAT_GLOBAL   = "xalichat.format.global"
+    const val FORMAT_GLOBAL = "xalichat.format.global"
     const val FORMAT_NICKNAME = "xalichat.format.nickname"
     const val FORMAT_NICKNAME_OTHERS = "xalichat.format.nickname.others"
-    const val FORMAT_SIGN      = "xalichat.format.sign"
-    const val FORMAT_DISCORD   = "xalichat.format.discord"
+    const val FORMAT_SIGN = "xalichat.format.sign"
+    const val FORMAT_DISCORD = "xalichat.format.discord"
     const val FORMAT_BROADCAST = "xalichat.format.broadcast"
 
-    const val NICKNAME        = "xalichat.command.nickname"
+    const val NICKNAME = "xalichat.command.nickname"
     const val NICKNAME_OTHERS = "xalichat.command.nickname.others"
 
     const val MESSAGE = "xalichat.message"
-    const val SPAM    = "xalichat.spam"
-    const val RELOAD  = "xalichat.reload"
+    const val SPAM = "xalichat.spam"
+    const val RELOAD = "xalichat.reload"
 
-    const val SET_MUTE            = "xalichat.setting.mute"
-    const val SET_MUTE_PLAYERS    = "xalichat.setting.mute.players"
+    const val SET_MUTE = "xalichat.setting.mute"
+    const val SET_MUTE_PLAYERS = "xalichat.setting.mute.players"
     const val SET_MUTE_BROADCASTS = "xalichat.setting.mute.broadcasts"
 
-    const val BYP_MSG_IGNORE      = "xalichat.bypass.message.ignore"
-    const val BYP_MUTE_PLAYERS    = "xalichat.bypass.mute.players"
+    const val BYP_MSG_IGNORE = "xalichat.bypass.message.ignore"
+    const val BYP_MUTE_PLAYERS = "xalichat.bypass.mute.players"
     const val BYP_MUTE_BROADCASTS = "xalichat.bypass.mute.broadcasts"
-    const val BYP_CHARACTERS      = "xalichat.bypass.characters"
+    const val BYP_CHARACTERS = "xalichat.bypass.characters"
 
     const val CMD_ADMIN_SPY_COMMAND = "xalichat.admin.spy.command"
-    const val CMD_ADMIN_SPY_SOCIAL  = "xalichat.admin.spy.social"
+    const val CMD_ADMIN_SPY_SOCIAL = "xalichat.admin.spy.social"
 
-    const val CMD_ADMIN_CHATLOG        = "xalichat.admin.chatlog"
+    const val CMD_ADMIN_CHATLOG = "xalichat.admin.chatlog"
     const val CMD_ADMIN_CHATLOG_EXPORT = "xalichat.admin.chatlog.export"
     const val CMD_ADMIN_CHATLOG_IMPORT = "xalichat.admin.chatlog.import"
-    const val CMD_ADMIN_BROADCAST      = "xalichat.admin.broadcast"
+    const val CMD_ADMIN_BROADCAST = "xalichat.admin.broadcast"
     const val CMD_ADMIN_ALERT_CHARACTERS = "xalichat.admin.alert.characters"
     const val CMD_ADMIN_BROADCAST_GLOBAL = "xalichat.admin.broadcast.global"
-    const val CMD_ADMIN_ANNOUNCE        = "xalichat.admin.announce"
+    const val CMD_ADMIN_ANNOUNCE = "xalichat.admin.announce"
     const val CMD_ADMIN_ANNOUNCE_GLOBAL = "xalichat.admin.announce.global"
 
-    const val INTERACTIVE_ITEM      = "xalichat.interactive.item"
+    const val INTERACTIVE_ITEM = "xalichat.interactive.item"
     const val INTERACTIVE_INVENTORY = "xalichat.interactive.inventory"
-    const val INTERACTIVE_ENDER     = "xalichat.interactive.ender"
-    const val INTERACTIVE_PING      = "xalichat.interactive.ping"
+    const val INTERACTIVE_ENDER = "xalichat.interactive.ender"
+    const val INTERACTIVE_PING = "xalichat.interactive.ping"
 
-    val DECOR_OBFUSCATED    = [ "obfuscated",    "magic",   "k" ]
-    val DECOR_BOLD          = [ "bold",          "b",       "l" ]
-    val DECOR_STRIKETHROUGH = [ "strikethrough", "st",      "m" ]
-    val DECOR_UNDERLINE     = [ "underline",     "u",       "n" ]
-    val DECOR_ITALIC        = [ "italic",        "i", "em", "o" ]
-    val DECOR_RESET         = [ "reset",                    "r" ]
+    val DECOR_OBFUSCATED = [ "obfuscated", "magic", "k" ]
+    val DECOR_BOLD = [ "bold", "b", "l" ]
+    val DECOR_STRIKETHROUGH = [ "strikethrough", "st", "m" ]
+    val DECOR_UNDERLINE = [ "underline", "u", "n" ]
+    val DECOR_ITALIC = [ "italic", "i", "em", "o" ]
+    val DECOR_RESET = [ "reset", "r" ]
 
     val TAG_NBT = ["data", "nbt"]
     val TAG_SELECTOR = ["selector", "sel"]
@@ -79,7 +79,6 @@ object Permissions {
             tagsToStrip += StandardTags.color()
         if (!target.hasPermission(permissionPrefix, "shadow"))
             tagsToStrip += StandardTags.shadowColor()
-
 
         val decorPermission = "$permissionPrefix.decor"
         if (!target.hasPermission(decorPermission, "*")) {

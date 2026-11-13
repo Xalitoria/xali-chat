@@ -5,6 +5,8 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.xalitoria.color.applyColors
 import com.xalitoria.color.componentColors
+import com.xalitoria.util.bukkit.findKnownPlayer
+import com.xalitoria.util.bukkit.runOwned
 import com.xalitoria.util.message.*
 import com.xalitoria.util.serial.toUuidOrNull
 import io.papermc.paper.command.brigadier.CommandSourceStack
@@ -33,7 +35,7 @@ import java.util.Date
  * `page:` alone reuses the sender's last search; `text:` is a single token. `/chatlog help` explains the flags.
  * `/chatlog export <filename> [flags]` writes the matches to `exports/<filename>`; `/chatlog import <filename>` views one.
  */
-object ChatLogCommand: XCommand(XaliChat.INSTANCE) {
+object ChatLogCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Chat log search, export and import"
     override val mainCommand = "xchatlog"
     override val aliases: List<String> = ["chatlog"]

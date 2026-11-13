@@ -1,17 +1,17 @@
 package mc.xalitoria.chat.paper.command
 
-import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.xalitoria.util.message.*
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import mc.xalitoria.chat.paper.XaliChat
-import mc.xalitoria.chat.paper.modal.command.XCommand
-import com.xalitoria.util.message.*
+import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.constants.Permissions
+import mc.xalitoria.chat.paper.modal.command.XCommand
 
 /** The root command. Every other command is registered on its own and also runs here under its names without the `x`. */
-object XaliChatCommand: XCommand(XaliChat.INSTANCE) {
+object XaliChatCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Main command for XaliChat"
     override val mainCommand = "xalichat"
     override val aliases = ["chat"]

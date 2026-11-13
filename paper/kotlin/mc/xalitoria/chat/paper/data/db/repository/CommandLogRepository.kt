@@ -1,9 +1,9 @@
 package mc.xalitoria.chat.paper.data.db.repository
 
-import mc.xalitoria.chat.paper.data.log.CommandLogEntry
+import com.xalitoria.chat.logs.CommandLogTable
 import mc.xalitoria.chat.paper.data.db.DatabaseManager
 import mc.xalitoria.chat.paper.data.db.DatabaseManager.dbTransaction
-import com.xalitoria.chat.logs.CommandLogTable
+import mc.xalitoria.chat.paper.data.log.CommandLogEntry
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
