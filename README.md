@@ -514,14 +514,15 @@ the list. Private messages are only recorded with `logging.messages.enable`, on 
 ##### In Plan's plugin pages
 
 The log is also put into XaliChat's card on Plan's plugin pages, above the card's counts, by a script (`/xalichat/plan.js`)
-added to Plan's own page. It needs a user with `xalichat.log`; others see no log there. The counts, which Plan lists
+added to Plan's own page. The log is on XaliChat's own page only, not on the `plugins-overview` page that lists every
+plugin. It needs a user with `xalichat.log`; others see no log there. The counts, which Plan lists
 one under another, are laid out as a row of tiles under the log.
 
 | Plan page | Shows |
 |---|---|
 | `/player/<uuid>/plugins/<server>` | That player's entries on that server. On the proxy's page, on every server. |
-| `/server/<uuid>/plugins-overview`, and `/server/<uuid>/plugins/XaliChat` (the *XaliChat* entry in the sidebar, in Plan 5.8) | That server's log. A proxy's page shows every server's. |
-| `/network/plugins-overview`, and `/network/plugins/XaliChat` (Plan 5.8) | Every server's log, with a picker for one server. Needs the proxy's XaliChat, see [On a network](#on-a-network-plan-on-the-proxy). |
+| `/server/<uuid>/plugins/XaliChat` (the *XaliChat* entry in the sidebar, in Plan 5.8) | That server's log. A proxy's page shows every server's. |
+| `/network/plugins/XaliChat` (Plan 5.8) | Every server's log, with a picker for one server. Needs the proxy's XaliChat, see [On a network](#on-a-network-plan-on-the-proxy). |
 
 A server is matched to Plan's by name, ignoring case: `database.server-name` in XaliChat's config has to be the name Plan
 has for the server, or the log is not limited to it. On a player's page, a right click on an entry has *Open in

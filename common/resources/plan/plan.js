@@ -1,6 +1,6 @@
 /*
- * Added to Plan's own page by XaliChat. On the pages that show a plugin's card (a player's plugins on one server, a
- * server's or the network's plugins, all of them or XaliChat's alone) it puts the log, framed from /xalichat/, into
+ * Added to Plan's own page by XaliChat. On the pages that show a plugin's card (a player's plugins on one server, and XaliChat's own
+ * page in the sidebar of a server or the network) it puts the log, framed from /xalichat/, into
  * XaliChat's card: that player's entries on a player's page, that server's on a server's, every server's on the network's. A right click on an entry there can open it in its server's
  * log, which is the same frame on that server's plugins page with the entry focused.
  *
@@ -48,10 +48,11 @@
     var path = location.pathname;
     var m = path.match(/^\/player\/([^/]+)\/plugins\/([^/]+)/);
     if (m) return { player: decodeURIComponent(m[1]), serverName: decodeURIComponent(m[2]) };
-    m = path.match(/^\/server\/([^/]+)\/plugins(-overview|\/([^/]+))\/?$/);
-    if (m && (m[2] === "-overview" || isOurs(m[3]))) return { serverUuid: decodeURIComponent(m[1]) };
-    m = path.match(/^\/network\/plugins(-overview|\/([^/]+))\/?$/);
-    if (m && (m[1] === "-overview" || isOurs(m[2]))) return {};
+    // Only XaliChat's own page, never the overview that lists every plugin's card.
+    m = path.match(/^\/server\/([^/]+)\/plugins\/([^/]+)\/?$/);
+    if (m && isOurs(m[2])) return { serverUuid: decodeURIComponent(m[1]) };
+    m = path.match(/^\/network\/plugins\/([^/]+)\/?$/);
+    if (m && isOurs(m[1])) return {};
     return null;
   }
 
@@ -159,7 +160,7 @@
     var name = typeof data.server === "string" ? data.server.toLowerCase() : "";
     var target = (await planServers()).find(function (s) { return !s.proxy && s.serverName.toLowerCase() === name; });
     location.assign(target
-      ? "/server/" + encodeURIComponent(target.serverUUID) + "/plugins-overview?xalichat=" + encodeURIComponent(data.key) + "#" + CARD
+      ? "/server/" + encodeURIComponent(target.serverUUID) + "/plugins/" + CARD + "?xalichat=" + encodeURIComponent(data.key) + "#" + CARD
       : BASE + "?focus=" + encodeURIComponent(data.key));
   });
 
