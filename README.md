@@ -715,8 +715,8 @@ chat/common ──────▶ chat/paper  (shades common and api; libraries 
 
 ### Inside the Paper plugin
 
-`XaliChat.onEnable` runs in this order, and a failure in the first four disables the plugin: coroutine scope and
-ProtocolLib; the Vault check; the configuration files; the database (Hikari pool, Exposed, schema statements generated
+`XaliChat.onEnable` runs in this order, and a failure in the first three disables the plugin: coroutine scope and
+ProtocolLib; the configuration files; the database (Hikari pool, Exposed, schema statements generated
 by `MigrationUtils`, this server's row in `servers`). After those: log writers and pings, ProtocolLib listeners,
 Brigadier commands (registered in the `COMMANDS` lifecycle event), the proxy messenger, announcements, vanish
 support, the Plan hook (whenever Plan enables, whichever loads first), the services other plugins use, interactive chat,

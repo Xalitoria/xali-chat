@@ -75,12 +75,6 @@ class XaliChat : JavaPlugin() {
         PROTO = ProtocolLibrary.getProtocolManager()
 
         val pm = server.pluginManager
-        if (["Vault", "VaultUnlocked"].none { pm.getPlugin(it) != null }) {
-            logger.fail("Vault or VaultUnlocked is required; disabling.")
-            pm.disablePlugin(this)
-            return
-        }
-
         config = YamlFile(dataPath.resolve("config.yml"), MainConfig.serializer(), ::MainConfig)
         messageConfig = YamlFile(
             dataPath.resolve("language", config.data.language + ".yml"),
