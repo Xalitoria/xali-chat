@@ -4,6 +4,21 @@
 silence settings, command and social spying, chat logging, interactive chat tokens, scheduled announcements and an
 optional DiscordSRV 3.0 (Ascension) integration. A small Velocity plugin relays what the servers send each other.
 
+## Contents
+
+- [Installation](#installation): [Requirements](#requirements), [Modules](#modules),
+  [Building and installing](#building-and-installing), [Removal](#removal)
+- [Configuration](#configuration): [Files](#files), [config.yml](#configyml), [Limiting characters](#limiting-characters),
+  [Formatting syntax](#formatting-syntax)
+- [Usage](#usage): [Commands](#commands), [Searching the chat log](#searching-the-chat-log),
+  [Interactive chat](#interactive-chat)
+- [Announcements](#announcements), [Proxy sync](#proxy-sync), [Working with other plugins](#working-with-other-plugins)
+- [Permissions](#permissions)
+- [Troubleshooting](#troubleshooting)
+- [Architecture](#architecture)
+- [Development](#development)
+- [See also](#see-also)
+
 ## Installation
 
 ### Requirements
@@ -53,6 +68,12 @@ needs its `velocity.toml` pointed at the server and `player-info-forwarding-mode
 
 The descriptors and the library loader come from the [Gradle plugin](../xali-gradle/README.md); the `paper { }` and
 `velocity { }` blocks are in `chat/build.gradle.kts`.
+
+### Removal
+
+Delete the jars. `plugins/XaliChat/` (`plugins/xalichat/` on the proxy) and the tables `<prefix>servers`, `chat_log`,
+`message_log`, `command_log`, `ignore`, `setting` and `nickname` stay. Plugins that use XaliChat's API (XaliFriends does)
+treat it as optional, see [Working with other plugins](#working-with-other-plugins).
 
 ## Configuration
 
@@ -149,7 +170,6 @@ over at startup and logs which labels it took. `/xsilence` has no `/mute` alias,
 | `/xignore <player>` | `ignore` | Toggle ignoring a player's chat and messages. | `xalichat.ignore` |
 | `/xsilence players` | `silence` | Toggle hiding global chat from other players (a personal setting). | `xalichat.setting.mute.players` |
 | `/xsilence broadcasts` | `silence` | Toggle hiding broadcasts and announcements (a personal setting). | `xalichat.setting.mute.broadcasts` |
-| `/xsilence messages`, `/xmsgtoggle` | `silence`; `msgtoggle`, `pmtoggle`, `togglemsg`, `togglepm` | Toggle turning private messages off: players who try to message you are told you aren't accepting them, on any server. You can still send. A personal setting, kept in the database. | `xalichat.setting.mute.messages` |
 | `/xcommandspy` | `commandspy` | Toggle seeing other players' commands. | `xalichat.admin.spy.command` |
 | `/xsocialspy` | `socialspy` | Toggle seeing private messages. | `xalichat.admin.spy.social` |
 | `/xnickname <nickname\|reset>` | `nickname`, `nick` | Set or clear the sender's nickname. | `xalichat.command.nickname` |
@@ -489,10 +509,6 @@ namespace is kept, and one the command map doesn't know is logged as typed. Comm
 [relay](#velocity-relay), which logs them like its own (as `velocity:<label>` for the proxy's own commands, with the same
 `logging.commands` rules). Without the proxy's XaliChat they are not logged.
 
-Plan 5.8 lists a plugin in the sidebar, on a page of its own, only when one of its tables has three or more columns, so the
-server's tables of latest chat and commands have three (*When*, *Player*, *Message* or *Command*) and the proxy's extension has
-one of four for the network. That page is where the [log](#in-plans-plugin-pages) is shown.
-
 Only what `logging.chat.database` and `logging.commands.database` write to the database can be shown, so the chat and
 command parts are left out when those are off (or with `plan.chat` or `plan.commands` set to `false`). Plan keeps 50
 characters of a table value, so a long message or command is cut with an ellipsis. Plan refreshes a player's data when
@@ -633,7 +649,7 @@ Decoration names: `obfuscated`/`magic`/`k`, `bold`/`b`/`l`, `strikethrough`/`st`
 
 | Permission | Effect |
 |---|---|
-| `xalichat.bypass.message.ignore` | The player cannot be added to an ignore list, others' ignore lists do not hide their chat or private messages, a plugin that limits who may message a player (see [Working with other plugins](#working-with-other-plugins)) does not stop their private messages, and they can message players who turned private messages off with `/xmsgtoggle`. |
+| `xalichat.bypass.message.ignore` | The player cannot be added to an ignore list, others' ignore lists do not hide their chat or private messages, and a plugin that limits who may message a player (see [Working with other plugins](#working-with-other-plugins)) does not stop their private messages. |
 | `xalichat.bypass.mute.players` | The player's chat still reaches players who muted global chat. |
 | `xalichat.bypass.mute.broadcasts` | The player's broadcasts and announcements still reach players who muted broadcasts. |
 | `xalichat.bypass.characters` | Chat and private messages are not limited by [`characters`](#limiting-characters). Operators are never limited. |
@@ -641,7 +657,7 @@ Decoration names: `obfuscated`/`magic`/`k`, `bold`/`b`/`l`, `strikethrough`/`st`
 ### Everything else
 
 `xalichat.reload`, `xalichat.message`, `xalichat.spam`, `xalichat.ignore`, `xalichat.setting.mute`,
-`xalichat.setting.mute.players`, `xalichat.setting.mute.broadcasts`, `xalichat.setting.mute.messages`, `xalichat.command.nickname`,
+`xalichat.setting.mute.players`, `xalichat.setting.mute.broadcasts`, `xalichat.command.nickname`,
 `xalichat.command.nickname.others`, `xalichat.admin.spy.command`, `xalichat.admin.spy.social`,
 `xalichat.admin.chatlog`, `xalichat.admin.chatlog.export`, `xalichat.admin.chatlog.import`,
 `xalichat.admin.broadcast`, `xalichat.admin.broadcast.global`, `xalichat.admin.announce`,
@@ -821,6 +837,8 @@ Sources are under `chat/<submodule>/kotlin`, tests under `chat/<submodule>/test`
 | `chat/paper` `LogSearch` | The merged log search and its focus window, the timeline's histogram, the page's search syntax and framed scope, the pings' short answer, and who the log page lets in. It tests code that lives in `chat/common` (`logs`) and runs here because it needs the Paper side's database setup. Uses a temporary SQLite database. |
 | `chat/paper` `Characters` | The basic-character rule: what it allows (private-use glyphs and `allow` included), strips and reports, and stripping a component without losing its colors. |
 | `chat/paper` `Filter`, `FilterPermutations` | Tools for the unfinished phrase filter, which the plugin does not load. |
+| `chat/paper` `Protocolor` | The colored-packet pass (`protocolor`): the value of a click event stays as written. |
+| `chat/common` `AnnouncementSummary` | The log line that names what Redis updated and removed. |
 
 ```console
 user $ ./gradlew :chat:common:test :chat:paper:test
@@ -836,6 +854,32 @@ user $ docker run -d --rm --name xali-mysql-test -e MYSQL_ROOT_PASSWORD=pw -e MY
 user $ XALI_MARIADB_TEST=127.0.0.1:3307 XALI_MYSQL_TEST=127.0.0.1:3308 XALI_DB_PASSWORD=pw ./gradlew :chat:paper:test --rerun-tasks
 ```
 
+**Adding a command**
+
+1. Add an object built on `XCommand` (`modal/command/XCommand.kt`) in `chat/paper/.../command`, with its main label (it starts
+   with `x`) and its Brigadier `builder()`. `XCommand` registers each alias with and without the `x`, takes labels over from
+   other plugins and re-exposes the tree under `/xalichat`.
+2. Add it to the `all` list of `XaliChatCommand`, so that `XaliChat` registers it in the `COMMANDS` lifecycle event.
+3. Add its help and messages to `MessageConfig` (the language file gets them on the next start), its permission to the table
+   under [Permissions](#permissions), and a row to [Commands](#commands).
+
+**Adding a setting**
+
+1. Add the field, with a default, to `data/config/MainConfig.kt`. The YAML files are serializable classes; a file that does not parse
+   changes nothing and the last good text is kept as `.bak`.
+2. Say in the README whether it applies on reload (a setting read once, such as the table prefix, needs a restart).
+
+**Adding an integration with another plugin**
+
+Put every class that names it in `external/`, and create it only after checking that the plugin is present. Declare the plugin as
+a soft dependency in `chat/build.gradle.kts` (`required = false`).
+
+**Trying it on a server**
+
+`./gradlew :chat:paper:runServer` and `:chat:velocity:runProxy` start the shared dev server and proxy ([Dev servers](../README.md#dev-servers));
+the proxy needs `velocity.toml` pointed at the server and modern forwarding on. The relay, the signed messages and the
+global commands were tested live with two servers behind a proxy and bots as players.
+
 Where things are: commands in `chat/paper/.../command`, event listeners in `listener`, ProtocolLib and Plan hooks in
 `external`, the database in `data/db`, the configuration classes in `data/config`, announcements and interactive chat in
 `modal`. What both plugins use has no platform code and lives in `chat/common`: the announcement sync in `announce`, the
@@ -848,4 +892,10 @@ they interact.
 - [XaliFriends](../friends/README.md) — friend system that limits private messages to friends through the gate API
 - [XaliMenu](../menu/README.md) — inventory menus that use the same text formatting
 - [Gradle plugin](../xali-gradle/README.md) — descriptors and library loading
+- [Root README](../README.md) — the workspace
+
+## External resources
+
 - [Plan](https://github.com/plan-player-analytics/Plan) — player analytics
+- [SignedVelocity](https://github.com/4drian3d/SignedVelocity) — keeps signed chat working behind Velocity
+- [PlaceholderAPI](https://wiki.placeholderapi.com/) — the placeholders

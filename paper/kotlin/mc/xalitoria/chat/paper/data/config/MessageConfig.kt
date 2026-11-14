@@ -6,6 +6,9 @@ import com.xalitoria.util.serial.message.State
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** What every heading starts with: the same colors in every Xali plugin. */
+private const val HEAD = "{#a0a>}&lXALI{#fff<}&f&lCHAT &7>"
+
 @Serializable
 data class MessageConfig(
     val commands: Commands = Commands()
@@ -13,13 +16,13 @@ data class MessageConfig(
     @Serializable
     data class Commands(
         @SerialName("no-permission")
-        val noPermission: String = "No permission.",
+        val noPermission: String = "You don't have permission to use this command.",
         @SerialName("player-only")
         val playerCommandOnly: String = "You must be a player to use this command.",
         @SerialName("unexpected-error")
         val unexpectedError: String = "An unexpected error occurred. Please try again.",
         private val help: String = """
-            {#a0a>}&lXALIC{#fff<}&f&lHAT &7> &dHELP
+            $HEAD &dHELP
             &d/{0} &rreload
             &d/{0} &r<command> &7- every x-command runs here without the x, e.g. &f/{0} broadcast
         """.trimIndent(),
@@ -52,7 +55,7 @@ data class MessageConfig(
             val console: Recipient = Recipient(),
             val self: String = "You can't message yourself!",
             @SerialName("target-invalid")
-            private val targetInvalid: String = "Player '{0}' not found!",
+            private val targetInvalid: String = "No player called {0} has joined.",
             @SerialName("target-offline")
             private val targetOffline: String = "{0} is offline.",
             @SerialName("no-players")
@@ -80,16 +83,16 @@ data class MessageConfig(
 
         @Serializable
         data class Reload(
-            val pass: String = "{#a0a>}&lXALIC{#fff<}&f&lHAT &7> &aReloaded!"
+            val pass: String = "Configuration reloaded."
         )
 
         @Serializable
         data class Spam(
-            private val usage: String = """{#a0a>}&lXALIS{#fff<}PAM &dHELP
+            private val usage: String = """$HEAD &dSPAM HELP
                 &d/{0} &rsay <repeat> <message>
                 &d/{0} &rstop
             """.trimIndent(),
-            val stop: String = "{#a0a>}&lXALIS{#fff<}PAM &aStopped spamming!",
+            val stop: String = "Stopped spamming.",
         ) {
             fun usage(label: String): String = usage.formatArgs(label)
         }
@@ -101,7 +104,7 @@ data class MessageConfig(
             private val added: String = "You are now ignoring {0}.",
             private val removed: String = "You are no longer ignoring {0}.",
             @SerialName("target-invalid")
-            private val targetInvalid: String = "Player '{0}' not found!",
+            private val targetInvalid: String = "No player called {0} has joined.",
             @SerialName("blocked-by-target")
             val blockedByTarget: String = "You cannot message this player.",
             private val exempt: String = "{0} can't be ignored.",
@@ -166,7 +169,7 @@ data class MessageConfig(
             @SerialName("reset-other")
             private val resetOther: String = "{0}'s nickname has been reset.",
             @SerialName("target-invalid")
-            private val targetInvalid: String = "Player '{0}' not found!",
+            private val targetInvalid: String = "No player called {0} has joined.",
             @SerialName("too-long")
             private val tooLong: String = "Nicknames can be at most {0} characters long.",
             val invalid: String = "A nickname can't be empty or contain spaces.",
@@ -201,7 +204,7 @@ data class MessageConfig(
             @SerialName("played-for-all")
             private val playedForAll: String = "Played '{0}'.",
             @SerialName("target-invalid")
-            private val targetInvalid: String = "Player '{0}' not found!",
+            private val targetInvalid: String = "No player called {0} has joined.",
             @SerialName("local-only")
             val localOnly: String = "Global messages need Velocity forwarding enabled and a player online to carry them; only this server ran it.",
         ) {
@@ -247,7 +250,7 @@ data class MessageConfig(
         data class ChatLog(
             private val usage: String = "Usage: &d/{0} &r[player:<name>] [since:<dur>] [text:<term>] [server:<name|*>] [page:<n>]",
             private val help: String = """
-                {#a0a>}&lCHAT{#fff<}&f&lLOG &7> &dHELP
+                $HEAD &dLOG HELP
                 &d/{0} &r[player:<name|uuid>] [since:<dur>] [text:<word>] [server:<name|*>] [page:<n>]
                 &dplayer: &rOnly this player's messages (name or UUID).
                 &dsince: &rOnly newer than this, e.g. 30m, 2h, 1d.

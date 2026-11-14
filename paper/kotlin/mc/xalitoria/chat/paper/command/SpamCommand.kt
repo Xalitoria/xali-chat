@@ -7,6 +7,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.xalitoria.util.bukkit.SERVER_UUID
 import com.xalitoria.util.bukkit.runOwned
 import com.xalitoria.util.message.fail
+import com.xalitoria.util.message.pass
 import com.xalitoria.util.message.send
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
@@ -52,7 +53,7 @@ object SpamCommand : XCommand(XaliChat.INSTANCE) {
                 spammer.remove(uuid)
                 val canceled = activeTasks.remove(uuid)?.also { it.cancel() } != null
                 debug("{0} stopped spam (task was running: {1})", sender.name, canceled)
-                sender send msg.stop
+                sender pass msg.stop
                 Command.SINGLE_SUCCESS
             }
         )
