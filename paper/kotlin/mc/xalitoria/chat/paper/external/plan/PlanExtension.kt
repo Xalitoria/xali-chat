@@ -32,6 +32,9 @@ import kotlin.time.Duration.Companion.days
  * their latest ones, and per server what was said and run in the last day and the latest of each. Only what
  * `logging.<kind>.database` keeps in the database is there to show. [LogPage] has all of it, searchable.
  *
+ * The server's tables have three columns on purpose: Plan 5.8 lists a plugin in the sidebar, with a page of its own,
+ * only when one of its tables has three or more, and that page is where the [LogPage] is shown.
+ *
  * Plan calls these methods off the server thread, so they read the database directly. Every Plan class is used only
  * from here and [PlanHook], which the plugin touches only once Plan is known to be installed.
  */
@@ -122,8 +125,9 @@ class PlanExtension(private val plugin: XaliChat) : DataExtension {
         val table = Table.builder()
             .columnOne("When", Icon(Family.SOLID, "clock", Color.NONE))
             .columnOneFormat(TableColumnFormat.DATE_SECOND)
-            .columnTwo("Message", Icon(Family.SOLID, "comment", Color.NONE))
-        latestOnServer(LogKind.CHAT).forEach { table.addRow(it.timestampMillis, cut("${it.username}: ${it.text}")) }
+            .columnTwo("Player", Icon(Family.SOLID, "user", Color.NONE))
+            .columnThree("Message", Icon(Family.SOLID, "comment", Color.NONE))
+        latestOnServer(LogKind.CHAT).forEach { table.addRow(it.timestampMillis, it.username, cut(it.text)) }
         return table.build()
     }
 
@@ -133,8 +137,9 @@ class PlanExtension(private val plugin: XaliChat) : DataExtension {
         val table = Table.builder()
             .columnOne("When", Icon(Family.SOLID, "clock", Color.NONE))
             .columnOneFormat(TableColumnFormat.DATE_SECOND)
-            .columnTwo("Command", Icon(Family.SOLID, "terminal", Color.NONE))
-        latestOnServer(LogKind.COMMAND).forEach { table.addRow(it.timestampMillis, cut("${it.username}: /${it.text}")) }
+            .columnTwo("Player", Icon(Family.SOLID, "user", Color.NONE))
+            .columnThree("Command", Icon(Family.SOLID, "terminal", Color.NONE))
+        latestOnServer(LogKind.COMMAND).forEach { table.addRow(it.timestampMillis, it.username, cut("/${it.text}")) }
         return table.build()
     }
 

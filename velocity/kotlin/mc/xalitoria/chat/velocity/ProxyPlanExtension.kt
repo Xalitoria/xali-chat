@@ -6,8 +6,12 @@ import com.djrapitops.plan.extension.annotation.BooleanProvider
 import com.djrapitops.plan.extension.annotation.Conditional
 import com.djrapitops.plan.extension.annotation.NumberProvider
 import com.djrapitops.plan.extension.annotation.PluginInfo
+import com.djrapitops.plan.extension.annotation.TableProvider
 import com.djrapitops.plan.extension.icon.Color
 import com.djrapitops.plan.extension.icon.Family
+import com.djrapitops.plan.extension.icon.Icon
+import com.djrapitops.plan.extension.table.Table
+import com.djrapitops.plan.extension.table.TableColumnFormat
 import com.xalitoria.chat.logs.LogFilter
 import com.xalitoria.chat.logs.LogKind
 import com.xalitoria.chat.logs.LogRepository
@@ -54,6 +58,30 @@ class ProxyPlanExtension(
     @NumberProvider(text = "Private messages (total)", description = "Sent on every server since the log began", iconName = "envelope", iconFamily = Family.SOLID, iconColor = Color.ORANGE, priority = 15)
     fun messagesTotal(): Long = count(LogKind.MESSAGE, null)
 
+    /**
+     * The latest chat and commands of every server. Plan 5.8 gives a plugin a sidebar entry of its own, which is where the
+     * log is shown, only when one of its tables has three or more columns; this one has four.
+     */
+    @TableProvider(tableColor = Color.LIGHT_BLUE)
+    fun latest(): Table {
+        val table = Table.builder()
+            .columnOne("When", Icon(Family.SOLID, "clock", Color.NONE))
+            .columnOneFormat(TableColumnFormat.DATE_SECOND)
+            .columnTwo("Server", Icon(Family.SOLID, "server", Color.NONE))
+            .columnThree("Player", Icon(Family.SOLID, "user", Color.NONE))
+            .columnFour("Chat and commands", Icon(Family.SOLID, "comment", Color.NONE))
+        try {
+            runBlocking { LogRepository.search(LogFilter(setOf(LogKind.CHAT, LogKind.COMMAND)), ROWS) }
+        } catch (e: Exception) {
+            debug("Plan could not read the chat log: $e")
+            emptyList()
+        }.forEach {
+            val text = if (it.kind == LogKind.COMMAND) "/${it.text}" else it.text
+            table.addRow(it.timestampMillis, it.server.orEmpty(), it.username, if (text.length <= 50) text else text.take(49) + "…")
+        }
+        return table.build()
+    }
+
     private fun since() = System.currentTimeMillis() - 1.days.inWholeMilliseconds
 
     private fun count(kind: LogKind, from: Long?): Long = try {
@@ -65,5 +93,6 @@ class ProxyPlanExtension(
 
     private companion object {
         const val MESSAGES = "xalichat-messages"
+        const val ROWS = 25
     }
 }

@@ -488,6 +488,10 @@ namespace is kept, and one the command map doesn't know is logged as typed. Comm
 [relay](#velocity-relay), which logs them like its own (as `velocity:<label>` for the proxy's own commands, with the same
 `logging.commands` rules). Without the proxy's XaliChat they are not logged.
 
+Plan 5.8 lists a plugin in the sidebar, on a page of its own, only when one of its tables has three or more columns, so the
+server's tables of latest chat and commands have three (*When*, *Player*, *Message* or *Command*) and the proxy's extension has
+one of four for the network. That page is where the [log](#in-plans-plugin-pages) is shown.
+
 Only what `logging.chat.database` and `logging.commands.database` write to the database can be shown, so the chat and
 command parts are left out when those are off (or with `plan.chat` or `plan.commands` set to `false`). Plan keeps 50
 characters of a table value, so a long message or command is cut with an ellipsis. Plan refreshes a player's data when
