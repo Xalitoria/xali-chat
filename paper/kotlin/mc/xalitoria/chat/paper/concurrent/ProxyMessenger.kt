@@ -93,6 +93,7 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
                         runCatching { plugin.reload() }.onFailure { plugin.logger.log(java.util.logging.Level.WARNING, "The reload the proxy asked for failed", it) }
                     }
                 }
+                is Message.ProxyCommand -> plugin.commandLog.record(opened.uuid, opened.name, opened.command, qualify = false)
                 is Message.Whisper -> receiveWhisper(opened)
                 is Message.WhisperAck -> pending.remove(opened.id)?.complete(opened)
                 null -> debug("Ignored a proxy message with a missing or wrong signature")

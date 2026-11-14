@@ -481,6 +481,13 @@ classes are touched only when Plan is present. A network has one web server (usu
 | Server page | Chat messages, commands and, with `logging.messages.enable`, private messages sent from this server, in the last 24 hours and in total, and tables of the latest `plan.rows` of chat and commands. |
 | Network page (proxy) | The same counts over every server, from the proxy's own extension, see [On a network](#on-a-network-plan-on-the-proxy). Private messages are counted once any are logged. |
 
+A command is logged with the namespace of the plugin that owns it, as the command map knows it: `/gmc audizian` is
+logged as `/essentials:gmc audizian` and `/pay audizian 100` as `/eco:pay audizian 100`. A label typed with a
+namespace is kept, and one the command map doesn't know is logged as typed. Commands the Velocity proxy handles itself
+(`/server`, `/glist`) never reach the server, so the proxy's XaliChat sends them to the player's server over the
+[relay](#velocity-relay), which logs them like its own (as `velocity:<label>` for the proxy's own commands, with the same
+`logging.commands` rules). Without the proxy's XaliChat they are not logged.
+
 Only what `logging.chat.database` and `logging.commands.database` write to the database can be shown, so the chat and
 command parts are left out when those are off (or with `plan.chat` or `plan.commands` set to `false`). Plan keeps 50
 characters of a table value, so a long message or command is cut with an ellipsis. Plan refreshes a player's data when

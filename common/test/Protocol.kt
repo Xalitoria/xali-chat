@@ -45,6 +45,8 @@ class Protocol {
         assertEquals(listOf("Notch", "jeb_", "Dinnerbone"), players.names)
         assertEquals(mapOf("jeb_" to listOf("Notch"), "Dinnerbone" to emptyList()), players.hidden)
         assertEquals(emptyList(), assertIs<Message.Players>(receive(Protocol.seal(secret, Message.Players([], emptyMap())))).names)
+        val proxied = assertIs<Message.ProxyCommand>(receive(Protocol.seal(secret, Message.ProxyCommand(uuid, "Notch", "velocity:server lobby é"))))
+        assertEquals(Triple(uuid, "Notch", "velocity:server lobby é"), Triple(proxied.uuid, proxied.name, proxied.command))
         assertIs<Message.Reload>(receive(Protocol.seal(secret, Message.Reload())))
         assertNull(Protocol.open(secret, Message.Reload().encode()), "a reload must be signed")
     }

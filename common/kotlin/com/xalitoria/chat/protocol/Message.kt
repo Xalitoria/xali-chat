@@ -77,6 +77,14 @@ sealed interface Message {
         override fun encode() = write("RELOAD") {}
     }
 
+    /**
+     * `PROXY_COMMAND`: [name] ([uuid]) ran [command], without the slash, on the proxy, which handled it itself, so the
+     * server they are on never saw it. The server logs it as it does its own commands.
+     */
+    class ProxyCommand(val uuid: UUID, val name: String, val command: String) : Message {
+        override fun encode() = write("PROXY_COMMAND") { writeUTF(uuid.toString()); writeUTF(name); write(command.toByteArray()) }
+    }
+
     companion object {
         /** Reads a message written by [encode]; null for a subchannel this version doesn't know. */
         fun decode(bytes: ByteArray): Message? = DataInputStream(ByteArrayInputStream(bytes)).run {
@@ -90,6 +98,7 @@ sealed interface Message {
                 "WHISPER_ACK" -> WhisperAck(
                     UUID.fromString(readUTF()), WhisperAck.Status.entries[readByte().toInt()], readUTF().takeIf { it.isNotEmpty() },
                 )
+                "PROXY_COMMAND" -> ProxyCommand(UUID.fromString(readUTF()), readUTF(), String(readAllBytes()))
                 "RELOAD" -> Reload()
                 "PLAYERS" -> Players(
                     List(readInt()) { readUTF() },

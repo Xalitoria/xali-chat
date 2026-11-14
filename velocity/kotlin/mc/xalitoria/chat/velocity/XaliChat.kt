@@ -1,6 +1,9 @@
 package mc.xalitoria.chat.velocity
 
+import com.velocitypowered.api.event.PostOrder
 import com.velocitypowered.api.event.Subscribe
+import com.velocitypowered.api.event.command.CommandExecuteEvent
+import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import com.velocitypowered.api.event.connection.PluginMessageEvent
 import com.velocitypowered.api.event.player.ServerPostConnectEvent
@@ -243,6 +246,23 @@ class XaliChat(
     @Subscribe
     fun onDisconnect(event: DisconnectEvent) = refreshPlayers()
 
+    /**
+     * A command the proxy handles itself (`/server`, `/glist`, a plugin's) never reaches the server the player is on, so
+     * that server is told, and logs it with its own. Commands the proxy passes on are logged there as they run.
+     */
+    @Subscribe(order = PostOrder.LAST)
+    fun onCommand(event: CommandExecuteEvent) {
+        val player = event.commandSource as? Player ?: return
+        val result = event.result
+        if (!result.isAllowed || result.isForwardToServer) return
+        val command = (result.command.orElse(null) ?: event.command).trim()
+        val label = command.substringBefore(' ')
+        if (label.isEmpty() || !proxy.commandManager.hasCommand(label)) return
+        val server = player.currentServer.orElse(null)?.server ?: return
+        val logged = if (':' in label || !proxy.commandManager.hasCommand("velocity:$label")) command else "velocity:$command"
+        deliver(server, ProxyCommand(player.uniqueId, player.username, logged))
+    }
+
     @Subscribe
     fun onPluginMessage(event: PluginMessageEvent) {
         if (event.identifier != channel) return
@@ -273,6 +293,7 @@ class XaliChat(
             is Whisper -> whisper(origin, message)
             is WhisperAck -> whispers.remove(message.id)?.let { deliver(it, message) }
             is Players -> logger.warn("Dropped a Players from {}: only the proxy sends those", origin.serverInfo.name)
+            is ProxyCommand -> logger.warn("Dropped a ProxyCommand from {}: only the proxy sends those", origin.serverInfo.name)
             is Reload -> logger.warn("Dropped a Reload from {}: only the proxy sends those", origin.serverInfo.name)
             null -> logger.warn("Dropped a message from {} with a missing or wrong signature", origin.serverInfo.name)
         }

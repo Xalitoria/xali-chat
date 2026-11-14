@@ -61,6 +61,8 @@ class XaliChat : JavaPlugin() {
 
     private var logPings: LogPings? = null
 
+    lateinit var commandLog: CommandLogEvent
+
     lateinit var interactive: Interactives
         private set
 
@@ -131,7 +133,7 @@ class XaliChat : JavaPlugin() {
         pm.registerEvents(ChatEvent(INSTANCE), INSTANCE)
         pm.registerEvents(PlayerCacheListener(INSTANCE), INSTANCE)
         pm.registerEvents(CommandSpyEvent(INSTANCE), INSTANCE)
-        pm.registerEvents(CommandLogEvent(INSTANCE), INSTANCE)
+        commandLog = CommandLogEvent(INSTANCE).also { pm.registerEvents(it, INSTANCE) }
         pm.registerEvents(SignListener(INSTANCE), INSTANCE)
         debug("Enabled: interactive chat={0}, DiscordSRV addon={1}", config.data.interactiveChat, discordSrv != null)
     }
