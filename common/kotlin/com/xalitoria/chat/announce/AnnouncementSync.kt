@@ -173,7 +173,7 @@ class AnnouncementSync(
             val commands = RedisClient.builder().hostAndPort(address).clientConfig(config.socketTimeoutMillis(5_000).build()).build()
             try {
                 // Subscribing holds its connection, which waits on the channel for as long as it likes.
-                Jedis(address, config.socketTimeoutMillis(0).build()).use { subscriber ->
+                Jedis(address, config.socketTimeoutMillis(0).autoNegotiateProtocol(false).build()).use { subscriber ->
                     val pubsub = object : JedisPubSub() {
                         override fun onSubscribe(channel: String, subscribedChannels: Int) {
                             // Closed while connecting: this one is not wanted any more.
