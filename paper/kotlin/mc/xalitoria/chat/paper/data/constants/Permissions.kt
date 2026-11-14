@@ -30,6 +30,7 @@ object Permissions {
     const val SET_MUTE = "xalichat.setting.mute"
     const val SET_MUTE_PLAYERS = "xalichat.setting.mute.players"
     const val SET_MUTE_BROADCASTS = "xalichat.setting.mute.broadcasts"
+    const val SET_MUTE_MESSAGES = "xalichat.setting.mute.messages"
 
     const val BYP_MSG_IGNORE = "xalichat.bypass.message.ignore"
     const val BYP_MUTE_PLAYERS = "xalichat.bypass.mute.players"

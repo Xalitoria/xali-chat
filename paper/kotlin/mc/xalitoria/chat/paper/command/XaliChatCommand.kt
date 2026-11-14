@@ -22,6 +22,7 @@ object XaliChatCommand : XCommand(XaliChat.INSTANCE) {
         SpamCommand,
         IgnoreCommand,
         SilenceCommand,
+        MessageToggleCommand,
         CommandSpyCommand,
         SocialSpyCommand,
         ChatLogCommand,

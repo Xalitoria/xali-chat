@@ -17,7 +17,7 @@ import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.modal.command.XCommand
 import org.bukkit.entity.Player
 
-/** `/xsilence <players|broadcasts>` toggles the sender's own setting to hide global chat or broadcasts. */
+/** `/xsilence <players|broadcasts|messages>` toggles the sender's own setting to hide global chat or broadcasts, or to turn private messages away. */
 object SilenceCommand : XCommand(XaliChat.INSTANCE) {
     override val description: String = "Chat and broadcast silence settings"
     override val mainCommand = "xsilence"
@@ -26,34 +26,43 @@ object SilenceCommand : XCommand(XaliChat.INSTANCE) {
         .literal(mainCommand)
         .then(toggle("players", Setting.MUTE_PLAYERS, Permissions.SET_MUTE_PLAYERS, plugin))
         .then(toggle("broadcasts", Setting.MUTE_BROADCASTS, Permissions.SET_MUTE_BROADCASTS, plugin))
+        .then(toggle("messages", Setting.MUTE_MESSAGES, Permissions.SET_MUTE_MESSAGES, plugin))
         .executes { ctx -> ctx.source.sender fail msg.usage("xsilence"); Command.SINGLE_SUCCESS }
 
     private fun toggle(label: String, setting: Setting, permission: String, plugin: XaliChat) = Commands
         .literal(label)
         .executes { ctx ->
-            val sender = ctx.source.sender
+            toggle(ctx.source.sender, label, setting, permission)
+            Command.SINGLE_SUCCESS
+        }
+
+    /** Flips [setting] for [sender], who needs [permission]; [label] only names it in the log. Also run by [MessageToggleCommand]. */
+    fun toggle(sender: org.bukkit.command.CommandSender, label: String, setting: Setting, permission: String) {
             when {
                 sender !is Player -> sender fail playerCommandOnly
                 !sender.hasPermission(permission) -> {
                     debug("/xsilence {0} denied for {1}: missing {2}", label, sender.name, permission)
                     sender fail noPermission
                 }
-                else -> plugin.scope.launch(Dispatchers.IO) {
+                else -> XaliChat.INSTANCE.scope.launch(Dispatchers.IO) {
                     try {
                         val muted = !SettingCache.isEnabled(sender.uniqueId, setting)
                         SettingRepository.set(sender.uniqueId, setting, if (muted) "true" else null)
                         SettingCache.set(sender.uniqueId, setting, if (muted) "true" else null)
                         debug("{0} set {1} to {2}", sender.name, setting, muted)
-                        val state = if (setting == Setting.MUTE_PLAYERS) msg.players else msg.broadcasts
-                        sender.runOwned(plugin) { sender pass state.get(muted) }
+                        val state = when (setting) {
+                            Setting.MUTE_PLAYERS -> msg.players
+                            Setting.MUTE_BROADCASTS -> msg.broadcasts
+                            Setting.MUTE_MESSAGES -> msg.messages
+                        }
+                        sender.runOwned(XaliChat.INSTANCE) { sender pass state.get(muted) }
                     } catch (e: Exception) {
-                        plugin.logger.fail("Failed to toggle $label mute for ${sender.name}", e)
-                        sender.runOwned(plugin) { sender fail unexpectedError }
+                        XaliChat.INSTANCE.logger.fail("Failed to toggle $label mute for ${sender.name}", e)
+                        sender.runOwned(XaliChat.INSTANCE) { sender fail unexpectedError }
                     }
                 }
             }
-            Command.SINGLE_SUCCESS
-        }
+    }
 
     private val cmdMsg get() = XaliChat.INSTANCE.messageConfig.data.commands
     private val msg get() = cmdMsg.mute

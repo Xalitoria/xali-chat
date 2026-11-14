@@ -149,6 +149,7 @@ over at startup and logs which labels it took. `/xsilence` has no `/mute` alias,
 | `/xignore <player>` | `ignore` | Toggle ignoring a player's chat and messages. | `xalichat.ignore` |
 | `/xsilence players` | `silence` | Toggle hiding global chat from other players (a personal setting). | `xalichat.setting.mute.players` |
 | `/xsilence broadcasts` | `silence` | Toggle hiding broadcasts and announcements (a personal setting). | `xalichat.setting.mute.broadcasts` |
+| `/xsilence messages`, `/xmsgtoggle` | `silence`; `msgtoggle`, `pmtoggle`, `togglemsg`, `togglepm` | Toggle turning private messages off: players who try to message you are told you aren't accepting them, on any server. You can still send. A personal setting, kept in the database. | `xalichat.setting.mute.messages` |
 | `/xcommandspy` | `commandspy` | Toggle seeing other players' commands. | `xalichat.admin.spy.command` |
 | `/xsocialspy` | `socialspy` | Toggle seeing private messages. | `xalichat.admin.spy.social` |
 | `/xnickname <nickname\|reset>` | `nickname`, `nick` | Set or clear the sender's nickname. | `xalichat.command.nickname` |
@@ -632,7 +633,7 @@ Decoration names: `obfuscated`/`magic`/`k`, `bold`/`b`/`l`, `strikethrough`/`st`
 
 | Permission | Effect |
 |---|---|
-| `xalichat.bypass.message.ignore` | The player cannot be added to an ignore list, others' ignore lists do not hide their chat or private messages, and a plugin that limits who may message a player (see [Working with other plugins](#working-with-other-plugins)) does not stop their private messages. |
+| `xalichat.bypass.message.ignore` | The player cannot be added to an ignore list, others' ignore lists do not hide their chat or private messages, a plugin that limits who may message a player (see [Working with other plugins](#working-with-other-plugins)) does not stop their private messages, and they can message players who turned private messages off with `/xmsgtoggle`. |
 | `xalichat.bypass.mute.players` | The player's chat still reaches players who muted global chat. |
 | `xalichat.bypass.mute.broadcasts` | The player's broadcasts and announcements still reach players who muted broadcasts. |
 | `xalichat.bypass.characters` | Chat and private messages are not limited by [`characters`](#limiting-characters). Operators are never limited. |
@@ -640,7 +641,7 @@ Decoration names: `obfuscated`/`magic`/`k`, `bold`/`b`/`l`, `strikethrough`/`st`
 ### Everything else
 
 `xalichat.reload`, `xalichat.message`, `xalichat.spam`, `xalichat.ignore`, `xalichat.setting.mute`,
-`xalichat.setting.mute.players`, `xalichat.setting.mute.broadcasts`, `xalichat.command.nickname`,
+`xalichat.setting.mute.players`, `xalichat.setting.mute.broadcasts`, `xalichat.setting.mute.messages`, `xalichat.command.nickname`,
 `xalichat.command.nickname.others`, `xalichat.admin.spy.command`, `xalichat.admin.spy.social`,
 `xalichat.admin.chatlog`, `xalichat.admin.chatlog.export`, `xalichat.admin.chatlog.import`,
 `xalichat.admin.broadcast`, `xalichat.admin.broadcast.global`, `xalichat.admin.announce`,

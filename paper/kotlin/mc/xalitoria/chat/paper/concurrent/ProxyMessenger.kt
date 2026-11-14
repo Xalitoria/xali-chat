@@ -15,6 +15,8 @@ import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
+import mc.xalitoria.chat.paper.data.db.SettingCache
+import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.external.VanishAPI
 import mc.xalitoria.chat.paper.util.PrivateMessageGates
 import mc.xalitoria.chat.paper.util.ProxyPlayers
@@ -139,6 +141,8 @@ class ProxyMessenger(private val plugin: XaliChat) : PluginMessageListener {
                 target == null || (!whisper.seesVanished && VanishAPI.isVanished(target)) -> Message.WhisperAck(whisper.id, Message.WhisperAck.Status.NOT_FOUND, null)
             !whisper.bypassIgnore && whisper.fromUuid?.let { IgnoreCache.isIgnoring(target.uniqueId, it) } == true ->
                 Message.WhisperAck(whisper.id, Message.WhisperAck.Status.IGNORED, target.name)
+            !whisper.bypassIgnore && SettingCache.isEnabled(target.uniqueId, Setting.MUTE_MESSAGES) ->
+                Message.WhisperAck(whisper.id, Message.WhisperAck.Status.DECLINED, target.name)
             !whisper.bypassIgnore && !PrivateMessageGates.allows(whisper.fromUuid, target) ->
                 Message.WhisperAck(whisper.id, Message.WhisperAck.Status.DECLINED, target.name)
             else -> {

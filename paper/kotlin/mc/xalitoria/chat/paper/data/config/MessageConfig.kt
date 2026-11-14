@@ -115,7 +115,7 @@ data class MessageConfig(
 
         @Serializable
         data class Mute(
-            private val usage: String = "Usage: &d/{0} &r<players|broadcasts>",
+            private val usage: String = "Usage: &d/{0} &r<players|broadcasts|messages>",
             val players: State = State(
                 "Global chat muted; you no longer see other players' messages.",
                 "Global chat unmuted."
@@ -123,6 +123,10 @@ data class MessageConfig(
             val broadcasts: State = State(
                 "Broadcasts muted.",
                 "Broadcasts unmuted."
+            ),
+            val messages: State = State(
+                "Private messages turned off; players can no longer message you.",
+                "Private messages turned on."
             ),
         ) {
             fun usage(label: String): String = usage.formatArgs(label)

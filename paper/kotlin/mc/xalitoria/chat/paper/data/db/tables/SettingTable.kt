@@ -19,4 +19,7 @@ enum class Setting {
 
     /** Hides broadcasts from the player. */
     MUTE_BROADCASTS,
+
+    /** Turns away private messages to the player. */
+    MUTE_MESSAGES,
 }

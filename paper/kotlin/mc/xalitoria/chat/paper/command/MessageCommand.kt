@@ -19,6 +19,8 @@ import mc.xalitoria.chat.paper.XaliChat
 import mc.xalitoria.chat.paper.XaliChat.Companion.debug
 import mc.xalitoria.chat.paper.data.constants.Permissions
 import mc.xalitoria.chat.paper.data.db.IgnoreCache
+import mc.xalitoria.chat.paper.data.db.SettingCache
+import mc.xalitoria.chat.paper.data.db.tables.Setting
 import mc.xalitoria.chat.paper.data.log.MessageLogEntry
 import mc.xalitoria.chat.paper.external.VanishAPI
 import mc.xalitoria.chat.paper.modal.command.XCommand
@@ -124,6 +126,11 @@ object MessageCommand : XCommand(XaliChat.INSTANCE) {
                 }
                 if (!sender.hasPermission(Permissions.BYP_MSG_IGNORE) && !PrivateMessageGates.allows((sender as? Player)?.uniqueId, target)) {
                     debug("/xmessage {0} -> {1} declined by a message gate", sender.name, target.name)
+                    sender fail msg.declined(target.name)
+                    return
+                }
+                if (SettingCache.isEnabled(target.uniqueId, Setting.MUTE_MESSAGES) && sender is Player && !sender.hasPermission(Permissions.BYP_MSG_IGNORE)) {
+                    debug("/xmessage {0} -> {1} declined: target turned private messages off", sender.name, target.name)
                     sender fail msg.declined(target.name)
                     return
                 }
