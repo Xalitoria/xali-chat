@@ -1,5 +1,4 @@
 import mc.xalitoria.gradle.sibling
-import mc.xalitoria.gradle.repo.kotlinx
 
 plugins {
     kotlin("plugin.serialization")
@@ -12,9 +11,9 @@ dependencies {
     implementation(sibling("common"))
     api(libs.kaml)
     api(libs.jedis)
-    api(kotlinx("serialization-json"))
+    api(libs.kotlinx.serialization)
     // For the log page, which reads the servers' logs from their database (see LogDatabase).
-    api(kotlinx("coroutines-core"))
+    api(libs.kotlinx.coroutines)
     api(libs.exposed.core)
     api(libs.exposed.jdbc)
     api(libs.bundles.database)

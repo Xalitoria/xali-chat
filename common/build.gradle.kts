@@ -1,5 +1,4 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import mc.xalitoria.gradle.repo.kotlinx
 
 plugins {
     kotlin("plugin.serialization")
@@ -13,15 +12,15 @@ plugins {
 dependencies {
     compileOnly(libs.kaml)
     compileOnly(libs.jedis)
-    compileOnly(kotlinx("serialization-json"))
-    compileOnly(kotlinx("coroutines-core"))
+    compileOnly(libs.kotlinx.serialization)
+    compileOnly(libs.kotlinx.coroutines)
     compileOnly(libs.bundles.exposed)
     // Exposed asks for an older slf4j than the platforms bring; compiling only needs some.
     compileOnly("org.slf4j:slf4j-api:2.0.17")
     compileOnly(libs.plan) { isTransitive = false }
     testImplementation(libs.kaml)
     testImplementation(libs.jedis)
-    testImplementation(kotlinx("serialization-json"))
+    testImplementation(libs.kotlinx.serialization)
 }
 
 java {

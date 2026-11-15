@@ -1,12 +1,14 @@
-// Builds this repository on its own. Inside the workspace (the Xali repositories checked out together), the workspace's
-// settings.gradle.kts is used instead and this file is ignored.
+// Builds this repository on its own. Inside the workspace (the Xali repositories checked out together, see
+// Xalitoria/xali-craft), the workspace's settings.gradle.kts is used instead and this file is ignored. This part is the same
+// in every repository: `scripts/xali sync` in the workspace copies it, so change it there.
 //
-// The plugin and the version catalog come from xali-gradle; until they are published anywhere else they are read from the
-// local Maven repository: run `./gradlew publishToMavenLocal` in xali-gradle first, and the same in util, color, chat and menu
-// for the modules that use their APIs.
+// The plugin and the version catalog come from xali-gradle: from maven.xali.host once they are published there, and from the
+// local Maven repository otherwise (run `./gradlew publishToMavenLocal` in xali-gradle first, and the same in util, color,
+// chat and menu for the modules that use their APIs).
 pluginManagement {
     repositories {
-        mavenLocal()
+        mavenLocal { content { includeGroupAndSubgroups("mc.xalitoria") } }
+        maven("https://maven.xali.host/releases") { content { includeGroupAndSubgroups("mc.xalitoria") } }
         gradlePluginPortal()
         mavenCentral()
     }
@@ -26,7 +28,8 @@ pluginManagement {
 dependencyResolutionManagement {
     @Suppress("UnstableApiUsage")
     repositories {
-        mavenLocal()
+        mavenLocal { content { includeGroupAndSubgroups("mc.xalitoria") } }
+        maven("https://maven.xali.host/releases") { content { includeGroupAndSubgroups("mc.xalitoria") } }
         mavenCentral()
     }
     versionCatalogs {
