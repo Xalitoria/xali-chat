@@ -36,7 +36,7 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/DiscordSRV/Ascension.git "$RUNNER_TEMP/ascension"
           cd "$RUNNER_TEMP/ascension"
-          ./gradlew :api:publishToMavenLocal -x javadocJar --console=plain
+          ./gradlew :api:publishToMavenLocal --console=plain
 
       - name: Build and test
         run: ./gradlew build --console=plain
